@@ -2,6 +2,8 @@
 .env.local
 .env.*
 !.env.example
+.streamlit/secrets.toml
+!.streamlit/secrets.toml.example
 __pycache__/
 *.py[cod]
 .pytest_cache/

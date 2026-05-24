@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSoc
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from twilio.base.exceptions import TwilioRestException
 from twilio.rest import Client
 from twilio.twiml.voice_response import Connect, VoiceResponse
 
@@ -165,7 +166,13 @@ async def create_outbound_call(payload: OutboundCallRequest) -> dict[str, str]:
             status_callback_event=["initiated", "ringing", "answered", "completed"],
         )
 
-    call = await anyio.to_thread.run_sync(_create_call)
+    try:
+        call = await anyio.to_thread.run_sync(_create_call)
+    except TwilioRestException as exc:
+        detail = exc.msg or "Twilio rejected the outbound call request."
+        status_code = 400 if 400 <= exc.status < 500 else 502
+        raise HTTPException(status_code=status_code, detail=detail) from exc
+
     call_sid = getattr(call, "sid")
 
     if resolved_prompt:

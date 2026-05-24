@@ -10,6 +10,7 @@ A Python voice agent that answers phone calls with OpenAI, Deepgram, and Twilio.
 - OpenAI-backed reply generation tuned for short spoken answers.
 - Built-in outbound campaign scenarios with editable custom prompt overrides.
 - Static frontend dashboard served directly by the Python app.
+- Streamlit operator dashboard for Streamlit Cloud deployment.
 - `.env.example` to document the required environment variables without exposing secrets.
 
 ## Project structure
@@ -45,6 +46,30 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 3000 --reload
 ```
 
 Then open `http://localhost:3000`.
+
+## Streamlit deployment
+
+Use Streamlit for the operator dashboard only. The Twilio webhook, call control, and media-stream backend must still run on the FastAPI app because Streamlit Cloud does not expose arbitrary webhook and WebSocket routes for Twilio.
+
+1. Deploy the FastAPI backend somewhere that supports HTTP and WSS routes, such as Render, Railway, Fly.io, or your own VM.
+2. Set the backend environment variables there:
+  - `PUBLIC_BASE_URL=https://your-backend-domain.example.com`
+  - `OPENAI_API_KEY`
+  - `DEEPGRAM_API_KEY`
+  - `TWILIO_ACCOUNT_SID`
+  - `TWILIO_AUTH_TOKEN`
+  - `TWILIO_PHONE_NUMBER`
+3. Deploy this repository to Streamlit Cloud.
+4. In Streamlit Cloud secrets, set:
+  - `BACKEND_BASE_URL = "https://your-backend-domain.example.com"`
+5. Use `streamlit_app.py` as the app entrypoint.
+6. Point Twilio voice webhooks to the backend URL, not the Streamlit URL.
+
+Example Streamlit secret:
+
+```toml
+BACKEND_BASE_URL = "https://your-backend-domain.example.com"
+```
 
 ## Twilio configuration
 
@@ -88,3 +113,5 @@ Copy from `.env.example` if you want a clean template. The application reads the
 - The current implementation stores call logs in memory. Restarting the server clears the activity feed.
 - Twilio must be able to reach your app over a public HTTPS URL.
 - For outbound calls and browser tests, a custom prompt overrides any selected campaign scenario. If both are blank, the app falls back to `test_system_prompt.txt`.
+- On Twilio trial accounts, outbound calls only work to verified destination numbers.
+- Streamlit Cloud hosts the operator dashboard, but the Twilio webhook and media-stream routes must stay on the FastAPI backend.
