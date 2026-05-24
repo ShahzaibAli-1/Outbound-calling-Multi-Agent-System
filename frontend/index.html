@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atlas Voice Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="page-shell">
+        <div class="ambient ambient-left"></div>
+        <div class="ambient ambient-right"></div>
+
+        <main class="layout">
+            <section class="panel hero-panel">
+                <p class="eyebrow">Python voice agent | OpenAI | Deepgram | Twilio</p>
+                <div class="hero-copy">
+                    <div>
+                        <h1>Take a phone call, transcribe it, reason over it, answer back.</h1>
+                        <p>
+                            This console drives an AI phone agent that uses Deepgram for live speech,
+                            OpenAI for reasoning, and Twilio for real calls. Use the browser test bench
+                            before dialing out, then monitor transcripts and call state in real time.
+                        </p>
+                    </div>
+                    <div class="hero-stats">
+                        <div class="metric-card">
+                            <span class="metric-label">Twilio Number</span>
+                            <strong id="phoneNumber">Loading...</strong>
+                        </div>
+                        <div class="metric-card">
+                            <span class="metric-label">Voice Webhook</span>
+                            <strong id="voiceWebhookShort">Loading...</strong>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel call-panel">
+                <div class="section-heading">
+                    <div>
+                        <p class="section-kicker">Call Controls</p>
+                        <h2>Launch an outbound AI call</h2>
+                    </div>
+                    <button id="refreshButton" class="ghost-button" type="button">Refresh data</button>
+                </div>
+
+                <form id="callForm" class="form-grid">
+                    <label class="field field-wide">
+                        <span>Destination phone number</span>
+                        <input id="toNumber" name="toNumber" type="tel" placeholder="+1 202 555 0118" required>
+                    </label>
+
+                    <label class="field field-wide">
+                        <span>Campaign scenario</span>
+                        <select id="callScenario" name="callScenario">
+                            <option value="">Loading scenarios...</option>
+                        </select>
+                    </label>
+
+                    <label class="field field-wide">
+                        <span>Custom call prompt</span>
+                        <textarea id="callPrompt" name="callPrompt" rows="5" placeholder="Optional override for the phone agent persona and behavior."></textarea>
+                    </label>
+
+                    <div class="response-box field-wide scenario-box">
+                        <div class="response-label">Selected prompt source</div>
+                        <div id="callScenarioPreview" class="response-body">Using the default FAST campaign prompt unless you choose a scenario or write a custom prompt.</div>
+                    </div>
+
+                    <div class="actions field-wide">
+                        <button class="primary-button" type="submit">Place call</button>
+                        <p id="callFeedback" class="feedback"></p>
+                    </div>
+                </form>
+            </section>
+
+            <section class="panel chat-panel">
+                <div class="section-heading compact">
+                    <div>
+                        <p class="section-kicker">Browser Test Bench</p>
+                        <h2>Validate the prompt before dialing</h2>
+                    </div>
+                </div>
+
+                <form id="chatForm" class="form-grid">
+                    <label class="field field-wide">
+                        <span>Test message</span>
+                        <textarea id="chatMessage" name="chatMessage" rows="4" placeholder="Ask the agent something like a caller would."></textarea>
+                    </label>
+
+                    <label class="field field-wide">
+                        <span>Campaign scenario</span>
+                        <select id="chatScenario" name="chatScenario">
+                            <option value="">Loading scenarios...</option>
+                        </select>
+                    </label>
+
+                    <label class="field field-wide">
+                        <span>Custom prompt override</span>
+                        <textarea id="chatPrompt" name="chatPrompt" rows="4" placeholder="Optional prompt used only for this browser test."></textarea>
+                    </label>
+
+                    <div class="response-box field-wide scenario-box">
+                        <div class="response-label">Scenario prompt preview</div>
+                        <div id="chatScenarioPreview" class="response-body">Choose a campaign scenario to preview its prompt, or leave it blank to use the default FAST prompt.</div>
+                    </div>
+
+                    <div class="actions field-wide">
+                        <button class="secondary-button" type="submit">Run browser test</button>
+                        <p id="chatFeedback" class="feedback"></p>
+                    </div>
+                </form>
+
+                <div class="response-box">
+                    <div class="response-label">Agent reply</div>
+                    <div id="chatAnswer" class="response-body">No browser test has been run yet.</div>
+                </div>
+            </section>
+
+            <aside class="panel status-panel">
+                <div class="section-heading compact">
+                    <div>
+                        <p class="section-kicker">System Status</p>
+                        <h2>Provider readiness</h2>
+                    </div>
+                </div>
+
+                <div class="status-grid">
+                    <div class="status-tile">
+                        <span>OpenAI</span>
+                        <strong id="providerOpenAI">Checking...</strong>
+                    </div>
+                    <div class="status-tile">
+                        <span>Deepgram</span>
+                        <strong id="providerDeepgram">Checking...</strong>
+                    </div>
+                    <div class="status-tile">
+                        <span>Twilio</span>
+                        <strong id="providerTwilio">Checking...</strong>
+                    </div>
+                </div>
+
+                <dl class="endpoint-list">
+                    <div>
+                        <dt>Public base URL</dt>
+                        <dd id="publicBaseUrl">Loading...</dd>
+                    </div>
+                    <div>
+                        <dt>Inbound webhook</dt>
+                        <dd id="voiceWebhook">Loading...</dd>
+                    </div>
+                    <div>
+                        <dt>Media stream</dt>
+                        <dd id="mediaStream">Loading...</dd>
+                    </div>
+                </dl>
+            </aside>
+
+            <section class="panel activity-panel">
+                <div class="section-heading compact">
+                    <div>
+                        <p class="section-kicker">Call Activity</p>
+                        <h2>Recent calls and transcripts</h2>
+                    </div>
+                </div>
+                <div id="callsList" class="calls-list">
+                    <div class="empty-state">No calls have been placed yet.</div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script type="module" src="/static/app.js"></script>
+</body>
+</html>
