@@ -42,10 +42,12 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-python -m uvicorn app.main:app --host 0.0.0.0 --port 3000 --reload
+python -m uvicorn app.main:app --host 0.0.0.0 --port 3000
 ```
 
 Then open `http://localhost:3000`.
+
+On Windows, prefer running Uvicorn without `--reload`. The reloader can fail with socket errors like `WinError 10013` or `WinError 10048` even when the app itself starts correctly without reload.
 
 ## Streamlit deployment
 
@@ -64,6 +66,8 @@ Use Streamlit for the operator dashboard only. The Twilio webhook, call control,
   - `BACKEND_BASE_URL = "https://your-backend-domain.example.com"`
 5. Use `streamlit_app.py` as the app entrypoint.
 6. Point Twilio voice webhooks to the backend URL, not the Streamlit URL.
+
+If your deployed Streamlit app shows a connection error to `http://127.0.0.1:3000`, that means `BACKEND_BASE_URL` was not configured. On Streamlit Cloud, `127.0.0.1` points to the Streamlit container itself, not your FastAPI backend.
 
 Example Streamlit secret:
 

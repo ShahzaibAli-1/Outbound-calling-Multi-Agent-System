@@ -3,12 +3,13 @@ from __future__ import annotations
 import os
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 import streamlit as st
 
 
-DEFAULT_BACKEND_BASE_URL = "http://127.0.0.1:3000"
+DEFAULT_BACKEND_BASE_URL = ""
 
 
 def load_secret(name: str) -> str | None:
@@ -25,6 +26,15 @@ def default_backend_base_url() -> str:
         or os.getenv("BACKEND_BASE_URL")
         or DEFAULT_BACKEND_BASE_URL
     ).rstrip("/")
+
+
+def is_local_backend_url(value: str) -> bool:
+    if not value:
+        return False
+
+    parsed = urlparse(value)
+    hostname = (parsed.hostname or "").lower()
+    return hostname in {"127.0.0.1", "localhost", "0.0.0.0"}
 
 
 def api_request(method: str, path: str, *, payload: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -115,6 +125,19 @@ with st.sidebar:
         "Use this dashboard for browser testing, outbound call control, and call monitoring."
     )
 
+if not st.session_state["backend_base_url"]:
+    st.error(
+        "No backend URL is configured. Set BACKEND_BASE_URL in Streamlit secrets or enter your public FastAPI backend URL in the sidebar."
+    )
+    st.code('BACKEND_BASE_URL = "https://your-backend-domain.example.com"', language="toml")
+    st.stop()
+
+if is_local_backend_url(st.session_state["backend_base_url"]):
+    st.warning(
+        "This dashboard is pointing to a local backend URL. That only works on your own machine. "
+        "On Streamlit Cloud, localhost points to the Streamlit container itself, not your FastAPI backend."
+    )
+
 health: dict[str, Any] | None = None
 scenarios: list[dict[str, str]] = []
 calls: list[dict[str, Any]] = []
@@ -125,6 +148,12 @@ try:
     calls = get_calls()
 except Exception as exc:
     st.error(f"Unable to reach the backend at {st.session_state['backend_base_url']}: {exc}")
+    if is_local_backend_url(st.session_state["backend_base_url"]):
+        st.info(
+            "Fix: deploy the FastAPI backend on a public host such as Render, Railway, Fly.io, or your own VM, "
+            "then set BACKEND_BASE_URL in Streamlit Cloud secrets to that public backend URL."
+        )
+        st.code('BACKEND_BASE_URL = "https://your-backend-domain.example.com"', language="toml")
     st.stop()
 
 status_columns = st.columns(4)
