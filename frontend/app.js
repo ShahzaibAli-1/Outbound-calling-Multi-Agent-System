@@ -49,7 +49,7 @@ function renderScenarioPreview(targetNode, scenarioId, customPrompt) {
     }
 
     if (!scenarioId) {
-        targetNode.textContent = "Using the default FAST campaign prompt from test_system_prompt.txt.";
+        targetNode.textContent = "Using the default medical intake prompt from test_system_prompt.txt.";
         return;
     }
 
@@ -131,8 +131,8 @@ async function loadCampaignScenarios() {
     const data = await fetchJson("/api/campaign-scenarios");
     state.scenarios = data.scenarios || [];
 
-    populateScenarioSelect(elements.callScenario, "Default FAST promotion prompt");
-    populateScenarioSelect(elements.chatScenario, "Default FAST promotion prompt");
+    populateScenarioSelect(elements.callScenario, "Default medical intake prompt");
+    populateScenarioSelect(elements.chatScenario, "Default medical intake prompt");
 
     renderScenarioPreview(
         elements.callScenarioPreview,
@@ -173,6 +173,23 @@ function renderCalls(calls) {
                 )
                 .join("");
 
+            const intake = call.patient_intake;
+            const intakeSummary = intake
+                ? `
+                    <div class="intake-summary">
+                        <div class="response-label">Patient intake (${escapeHtml(intake.intake_status || "unknown")})</div>
+                        <div class="intake-grid">
+                            ${intake.full_name ? `<div><strong>Name:</strong> ${escapeHtml(intake.full_name)}</div>` : ""}
+                            ${intake.date_of_birth ? `<div><strong>DOB:</strong> ${escapeHtml(intake.date_of_birth)}</div>` : ""}
+                            ${intake.phone_number ? `<div><strong>Phone:</strong> ${escapeHtml(intake.phone_number)}</div>` : ""}
+                            ${intake.reason_for_visit ? `<div><strong>Reason:</strong> ${escapeHtml(intake.reason_for_visit)}</div>` : ""}
+                            ${intake.allergies ? `<div><strong>Allergies:</strong> ${escapeHtml(intake.allergies)}</div>` : ""}
+                            ${intake.current_medications ? `<div><strong>Medications:</strong> ${escapeHtml(intake.current_medications)}</div>` : ""}
+                        </div>
+                    </div>
+                `
+                : "";
+
             return `
                 <article class="call-card">
                     <div class="call-head">
@@ -182,6 +199,7 @@ function renderCalls(calls) {
                         </div>
                         <div class="call-badge">${status}</div>
                     </div>
+                    ${intakeSummary}
                     <div class="events">${events || '<div class="empty-state">No transcript events yet.</div>'}</div>
                 </article>
             `;

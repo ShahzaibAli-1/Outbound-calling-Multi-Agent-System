@@ -1,14 +1,15 @@
-# AI Voice Agent
+# Medical Voice Intake Agent
 
-A Python voice agent that answers phone calls with OpenAI, Deepgram, and Twilio. The backend handles Twilio voice webhooks and media streams, Deepgram provides live speech-to-text and text-to-speech, and OpenAI generates the spoken reply. A browser dashboard is included for outbound calling, prompt testing, and call monitoring.
+A Python voice agent for healthcare clinics that handles patient intake over the phone using OpenAI, Deepgram, and Twilio. The backend handles Twilio voice webhooks and media streams, Deepgram provides live speech-to-text and text-to-speech, and OpenAI generates spoken replies while extracting structured patient intake data from each call.
 
 ## What is included
 
 - FastAPI backend for health checks, browser testing, outbound dialing, Twilio webhooks, and the media WebSocket.
 - Deepgram live transcription bridge for Twilio `mulaw/8000` audio.
 - Deepgram TTS playback back into the live Twilio call.
-- OpenAI-backed reply generation tuned for short spoken answers.
-- Built-in outbound campaign scenarios with editable custom prompt overrides.
+- OpenAI-backed reply generation tuned for short spoken answers and patient intake collection.
+- Structured patient intake extraction stored per call (name, DOB, symptoms, allergies, insurance, and more).
+- Built-in medical campaign scenarios including new patient intake, appointment intake, and symptom screening.
 - Static frontend dashboard served directly by the Python app.
 - Streamlit operator dashboard for Streamlit Cloud deployment.
 - `.env.example` to document the required environment variables without exposing secrets.
@@ -103,10 +104,12 @@ Copy from `.env.example` if you want a clean template. The application reads the
 
 - `GET /` serves the dashboard.
 - `GET /api/health` returns provider readiness and public endpoints.
-- `GET /api/campaign-scenarios` returns the built-in outbound campaign prompt catalog.
+- `GET /api/campaign-scenarios` returns the built-in medical intake and clinic campaign prompt catalog.
 - `POST /api/chat/test` runs a browser-side prompt test through OpenAI.
 - `POST /api/calls/outbound` starts an outbound Twilio call.
-- `GET /api/calls` returns recent call activity.
+- `GET /api/calls` returns recent call activity with attached patient intake records when available.
+- `GET /api/patient-intakes` returns structured patient intake records captured from calls.
+- `GET /api/patient-intakes/{call_sid}` returns the intake record for a specific call.
 - `POST /api/twilio/voice` returns TwiML that connects the live media stream.
 - `POST /api/twilio/status` stores Twilio call status updates.
 - `WS /ws/twilio-media` accepts the Twilio bidirectional media stream.
@@ -114,7 +117,8 @@ Copy from `.env.example` if you want a clean template. The application reads the
 ## Notes
 
 - Keep real secrets in `.env` only. Do not hardcode provider keys into Python or frontend files.
-- The current implementation stores call logs in memory. Restarting the server clears the activity feed.
+- The current implementation stores call logs and patient intake records in memory. Restarting the server clears the activity feed.
+- Patient intake is extracted automatically from call transcripts after each caller turn and again when the call ends.
 - Twilio must be able to reach your app over a public HTTPS URL.
 - For outbound calls and browser tests, a custom prompt overrides any selected campaign scenario. If both are blank, the app falls back to `test_system_prompt.txt`.
 - On Twilio trial accounts, outbound calls only work to verified destination numbers.

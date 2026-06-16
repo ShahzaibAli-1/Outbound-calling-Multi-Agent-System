@@ -17,11 +17,12 @@ from app.config import BASE_DIR, compose_voice_prompt, get_settings
 from app.models import ChatRequest, ChatResponse, OutboundCallRequest
 from app.services.call_session import CallSession
 from app.services.openai_service import OpenAIResponder
+from app.services.patient_intake_service import PatientIntakeExtractor
 from app.store import CallStore
 
 
 settings = get_settings()
-app = FastAPI(title="AI Voice Agent", version="1.0.0")
+app = FastAPI(title="Medory Call Center", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -32,6 +33,7 @@ app.add_middleware(
 frontend_dir = BASE_DIR / "frontend"
 store = CallStore()
 responder = OpenAIResponder(settings)
+intake_extractor = PatientIntakeExtractor(settings)
 twilio_client = Client(settings.twilio_account_sid, settings.twilio_auth_token)
 call_sessions: dict[str, CallSession] = {}
 prompt_overrides: dict[str, str] = {}
@@ -66,6 +68,7 @@ def get_or_create_session(
         settings=settings,
         call_store=store,
         responder=responder,
+        intake_extractor=intake_extractor,
         call_sid=call_sid,
         from_number=from_number,
         to_number=to_number,
@@ -146,6 +149,23 @@ async def test_chat(payload: ChatRequest) -> ChatResponse:
 @app.get("/api/calls")
 async def list_calls() -> dict[str, object]:
     return {"calls": [call.model_dump(mode="json") for call in store.list_calls()]}
+
+
+@app.get("/api/patient-intakes")
+async def list_patient_intakes() -> dict[str, object]:
+    return {
+        "patient_intakes": [
+            intake.model_dump(mode="json") for intake in store.list_patient_intakes()
+        ]
+    }
+
+
+@app.get("/api/patient-intakes/{call_sid}")
+async def get_patient_intake(call_sid: str) -> dict[str, object]:
+    intake = store.get_patient_intake(call_sid)
+    if intake is None:
+        raise HTTPException(status_code=404, detail=f"No patient intake found for call: {call_sid}")
+    return {"patient_intake": intake.model_dump(mode="json")}
 
 
 @app.post("/api/calls/outbound")

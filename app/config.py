@@ -12,11 +12,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 PROMPT_FILE = BASE_DIR / "test_system_prompt.txt"
 
 VOICE_REPLY_GUIDANCE = (
-    "You are speaking on a live phone call. Answer the caller's latest question directly first, "
-    "then add at most one brief supporting detail. Keep every reply extremely short so it can be "
-    "spoken almost immediately. Use no more than two short sentences and prefer fewer than thirty words. "
-    "Do not use markdown, bullet points, numbered lists, or long monologues. If you are promoting something, "
-    "do it conversationally rather than as a scripted speech."
+    "You are speaking on a live phone call for medical patient intake. Answer the caller's latest question "
+    "directly first, then ask at most one short follow-up intake question. Keep every reply extremely short "
+    "so it can be spoken almost immediately. Use no more than two short sentences and prefer fewer than thirty "
+    "words. Do not use markdown, bullet points, numbered lists, or long monologues. Confirm names, dates, and "
+    "IDs by repeating them back. Never diagnose or prescribe."
 )
 
 
@@ -38,15 +38,18 @@ def load_prompt_file() -> str | None:
 
 def default_agent_name() -> str:
     prompt_text = (load_prompt_file() or "").lower()
-    if "fast-nuces islamabad" in prompt_text:
-        return "FAST-NUCES Islamabad Advisor"
+    if "medical intake" in prompt_text or "healthcare clinic" in prompt_text:
+        return "Clinic Intake Assistant"
     return "Voice Agent"
 
 
 def default_agent_greeting() -> str:
     prompt_text = (load_prompt_file() or "").lower()
-    if "fast-nuces islamabad" in prompt_text:
-        return "Hello, this is FAST-NUCES Islamabad. Do you have any questions about studying here?"
+    if "medical intake" in prompt_text or "healthcare clinic" in prompt_text:
+        return (
+            "Hello, this is the clinic intake line. I can help register you and collect a few details. "
+            "May I start with your full name?"
+        )
     return "Hello, thank you for taking my call. How can I help you today?"
 
 

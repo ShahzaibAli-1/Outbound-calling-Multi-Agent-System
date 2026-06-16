@@ -97,12 +97,12 @@ def format_timestamp(value: str | None) -> str:
 
 
 st.set_page_config(
-    page_title="AI Voice Agent Control Panel",
+    page_title="Medory Call Center",
     page_icon="phone",
     layout="wide",
 )
 
-st.title("AI Voice Agent Control Panel")
+st.title("Medory Call Center")
 st.caption(
     "Deploy this Streamlit app as the operator dashboard. Keep the Twilio webhook and media-stream backend on the FastAPI service."
 )
@@ -172,7 +172,7 @@ with tabs[0]:
     st.subheader("Launch an outbound call")
     with st.form("outbound-call-form"):
         to_number = st.text_input("Destination phone number", placeholder="+1 202 555 0118")
-        scenario_options = {"Default FAST prompt": ""}
+        scenario_options = {"Default medical intake prompt": ""}
         scenario_options.update({scenario["label"]: scenario["id"] for scenario in scenarios})
         scenario_label = st.selectbox("Campaign scenario", list(scenario_options.keys()))
         custom_prompt = st.text_area(
@@ -208,7 +208,7 @@ with tabs[1]:
             placeholder="Ask the agent something like a real caller would.",
             height=120,
         )
-        chat_scenario_options = {"Default FAST prompt": ""}
+        chat_scenario_options = {"Default medical intake prompt": ""}
         chat_scenario_options.update({scenario["label"]: scenario["id"] for scenario in scenarios})
         chat_scenario_label = st.selectbox("Campaign scenario", list(chat_scenario_options.keys()), key="chat-scenario")
         chat_custom_prompt = st.text_area(
@@ -245,6 +245,24 @@ with tabs[2]:
         with st.expander(title, expanded=False):
             st.write(f"SID: {call.get('sid', 'unknown')}")
             st.write(f"Direction: {call.get('direction', 'unknown')}")
+            intake = call.get("patient_intake")
+            if intake:
+                st.markdown("**Patient intake**")
+                intake_fields = [
+                    ("Status", intake.get("intake_status")),
+                    ("Name", intake.get("full_name")),
+                    ("DOB", intake.get("date_of_birth")),
+                    ("Phone", intake.get("phone_number")),
+                    ("Reason for visit", intake.get("reason_for_visit")),
+                    ("Symptoms", intake.get("symptoms")),
+                    ("Allergies", intake.get("allergies")),
+                    ("Medications", intake.get("current_medications")),
+                    ("Insurance", intake.get("insurance_provider")),
+                    ("Member ID", intake.get("insurance_member_id")),
+                ]
+                for label, value in intake_fields:
+                    if value:
+                        st.write(f"{label}: {value}")
             for event in reversed(call.get("events", [])[-12:]):
                 st.markdown(
                     f"**{event.get('type', 'status').upper()}**  \\n+{event.get('text', '')}  \\n+{format_timestamp(event.get('timestamp'))}"

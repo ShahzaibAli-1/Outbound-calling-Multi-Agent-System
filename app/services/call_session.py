@@ -10,6 +10,7 @@ from fastapi import WebSocket
 from app.config import Settings
 from app.services.deepgram_service import DeepgramLiveTranscriber, DeepgramSpeechSynthesizer
 from app.services.openai_service import OpenAIResponder
+from app.services.patient_intake_service import PatientIntakeExtractor
 from app.store import CallStore
 
 
@@ -20,6 +21,7 @@ class CallSession:
         settings: Settings,
         call_store: CallStore,
         responder: OpenAIResponder,
+        intake_extractor: PatientIntakeExtractor,
         call_sid: str,
         from_number: str | None,
         to_number: str | None,
@@ -29,6 +31,7 @@ class CallSession:
         self._settings = settings
         self._call_store = call_store
         self._responder = responder
+        self._intake_extractor = intake_extractor
         self._websocket: WebSocket | None = None
         self._stream_sid: str | None = None
         self._system_prompt = system_prompt or settings.agent_system_prompt
@@ -82,6 +85,7 @@ class CallSession:
             self._history.append({"role": "user", "content": transcript})
             self._history.append({"role": "assistant", "content": answer})
             await self._send_agent_message(answer, record_history=False)
+            await self._capture_patient_intake(transcript)
         except Exception as exc:  # pragma: no cover - defensive logging path
             self._call_store.add_event(self.call_sid, "error", f"Agent error: {exc}")
             await self._send_agent_message(
@@ -127,9 +131,35 @@ class CallSession:
             )
         )
 
+    async def _capture_patient_intake(self, latest_user_text: str) -> None:
+        try:
+            current = self._call_store.get_patient_intake(self.call_sid)
+            intake = await self._intake_extractor.extract_intake(
+                call_sid=self.call_sid,
+                history=self._history,
+                latest_user_text=latest_user_text,
+                current=current,
+            )
+            if not intake.phone_number:
+                call_record = self._call_store.get(self.call_sid)
+                if call_record and call_record.from_number:
+                    intake = intake.model_copy(update={"phone_number": call_record.from_number})
+
+            saved = self._call_store.upsert_patient_intake(intake)
+            self._call_store.add_event(
+                self.call_sid,
+                "system",
+                f"Patient intake updated ({saved.intake_status}).",
+            )
+        except Exception as exc:  # pragma: no cover - defensive logging path
+            self._call_store.add_event(self.call_sid, "error", f"Intake extraction error: {exc}")
+
     async def close(self, status: str = "completed") -> None:
         if self._closed:
             return
+
+        if self._history:
+            await self._capture_patient_intake(latest_user_text="")
 
         self._closed = True
         self._call_store.update_status(self.call_sid, status)
