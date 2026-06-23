@@ -1,0 +1,3093 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Medory — Voice Agent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,600;1,500&family=Figtree:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --canvas: #F5F1E9;
+      --canvas-2: #EFEAE0;
+      --ink: #0B1220;
+      --ink-2: #13203A;
+      --ink-rail: #0A1019;
+      --gold: #B8893B;
+      --gold-deep: #8C6526;
+      --amber-bg: #FBF1DD;
+      --amber-line: #E3C481;
+      --amber-text: #8A6A1F;
+      --green: #3F7D5C;
+      --green-bg: #E9F2EC;
+      --blue: #2E5A93;
+      --blue-bg: #E7EEF7;
+      --red: #B3463F;
+      --red-bg: #FBEAE8;
+      --line: #E2DCCD;
+      --line-soft: #EAE4D6;
+      --text: #1C2230;
+      --text-dim: #6B6657;
+      --text-faint: #9A9484;
+      --white: #FFFFFF;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--canvas);
+      font-family: 'Figtree', sans-serif;
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ===== ICON RAIL ===== */
+    .rail {
+      width: 56px;
+      background: var(--ink-rail);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 18px 0;
+      flex-shrink: 0;
+    }
+
+    .rail-logo {
+      width: 30px;
+      height: 30px;
+      border-radius: 7px;
+      background: linear-gradient(135deg, #1B2A48, #0A1019);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 26px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .rail-logo svg {
+      width: 15px;
+      height: 15px;
+    }
+
+    .rail-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 6px;
+      color: #6B7690;
+      position: relative;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+
+    .rail-icon:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: #C9CEDB;
+    }
+
+    .rail-icon.active {
+      background: rgba(184, 137, 59, 0.16);
+      color: var(--gold);
+    }
+
+    .rail-icon svg {
+      width: 17px;
+      height: 17px;
+    }
+
+    .rail-icon .dot {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--red);
+      border: 1.5px solid var(--ink-rail);
+    }
+
+    .rail-spacer {
+      flex: 1;
+    }
+
+    .rail-gear {
+      width: 34px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #5A6478;
+      cursor: pointer;
+    }
+
+    .rail-gear svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .rail-gear.active {
+      color: var(--gold);
+    }
+
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    /* ===== SCREEN SWITCHER (prototype nav, not part of real product chrome) ===== */
+    .proto-nav {
+      background: #1A0E0D;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      padding: 8px 14px;
+      flex-shrink: 0;
+    }
+
+    .proto-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 9.5px;
+      letter-spacing: .07em;
+      color: #7A6B66;
+      text-transform: uppercase;
+      margin-right: 10px;
+    }
+
+    .proto-tab {
+      font-family: 'DM Mono', monospace;
+      font-size: 10.5px;
+      color: #B3A39E;
+      padding: 6px 11px;
+      border-radius: 6px;
+      cursor: pointer;
+      letter-spacing: .02em;
+    }
+
+    .proto-tab:hover {
+      background: rgba(255, 255, 255, 0.06);
+      color: #fff;
+    }
+
+    .proto-tab.active {
+      background: rgba(184, 137, 59, 0.22);
+      color: #E8C383;
+      font-weight: 600;
+    }
+
+    /* ===== TOP BAR (default, dark navy) ===== */
+    .topbar {
+      height: 52px;
+      background: var(--ink);
+      display: flex;
+      align-items: center;
+      padding: 0 18px;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+
+    .topbar.rec {
+      background: #1A0E0D;
+      border-bottom: 1px solid #2A1715;
+    }
+
+    .topbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #fff;
+      font-weight: 700;
+      font-size: 14.5px;
+    }
+
+    .topbar-brand svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .badge-pill {
+      font-family: 'DM Mono', monospace;
+      font-size: 9.5px;
+      letter-spacing: .06em;
+      color: #A9B2C6;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 2.5px 7px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .topbar-search {
+      flex: 1;
+      max-width: 480px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 7px;
+      padding: 7px 11px;
+      color: #7C869C;
+      font-size: 13px;
+    }
+
+    .topbar-search svg {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+
+    .kbd {
+      margin-left: auto;
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 1.5px 5px;
+      border-radius: 3px;
+      color: #8C96AB;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-left: auto;
+    }
+
+    .topbar-alert {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: #E3B5AE;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .topbar-alert::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #D87A6F;
+    }
+
+    .topbar-style {
+      font-family: 'DM Mono', monospace;
+      font-size: 10.5px;
+      color: #9AA3B6;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 5px 10px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .topbar-style b {
+      color: #E7EAF0;
+      font-weight: 600;
+    }
+
+    .avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #1F4FA0;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .topbar-doc {
+      color: #E7EAF0;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .rec-tag {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: .06em;
+      color: #F0A39A;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .rec-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #E2554A;
+      animation: pulse 1.3s infinite;
+    }
+
+    @keyframes pulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(226, 85, 74, .5);
+      }
+
+      70% {
+        box-shadow: 0 0 0 6px rgba(226, 85, 74, 0);
+      }
+
+      100% {
+        box-shadow: 0 0 0 0 rgba(226, 85, 74, 0);
+      }
+    }
+
+    .topbar-divider {
+      width: 1px;
+      height: 18px;
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .topbar-caller {
+      color: #fff;
+      font-size: 13.5px;
+      font-weight: 600;
+    }
+
+    .topbar-caller span {
+      color: #A99A95;
+      font-weight: 400;
+      margin-left: 6px;
+      font-size: 12px;
+    }
+
+    .lang-pill {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      color: #C9B9B4;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 2.5px 7px;
+      border-radius: 4px;
+    }
+
+    .timer {
+      font-family: 'DM Mono', monospace;
+      font-size: 14px;
+      color: #fff;
+    }
+
+    /* ===== SCREEN WRAP ===== */
+    .screen {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .screen.active {
+      display: flex;
+    }
+
+    .content {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+    }
+
+    /* ===== SHARED: queue/list panel ===== */
+    .queue-panel {
+      width: 268px;
+      background: var(--canvas-2);
+      border-right: 1px solid var(--line);
+      padding: 22px 18px;
+      flex-shrink: 0;
+      overflow-y: auto;
+    }
+
+    .queue-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 3px;
+    }
+
+    .queue-title {
+      font-family: 'Lora', serif;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .queue-date {
+      font-family: 'DM Mono', monospace;
+      font-size: 10.5px;
+      color: var(--text-faint);
+    }
+
+    .queue-sub {
+      font-size: 11.5px;
+      color: var(--text-dim);
+      margin-bottom: 14px;
+    }
+
+    .queue-sub b {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .queue-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .qtab {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-dim);
+      padding: 6px 9px 9px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+    }
+
+    .qtab.active {
+      color: var(--ink);
+      border-bottom-color: var(--ink);
+      font-weight: 600;
+    }
+
+    .qgroup-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 9.5px;
+      letter-spacing: .08em;
+      color: var(--text-faint);
+      text-transform: uppercase;
+      margin: 14px 0 8px;
+    }
+
+    .qitem {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 8px;
+      border-radius: 8px;
+      margin-bottom: 2px;
+      cursor: pointer;
+    }
+
+    .qitem.now,
+    .qitem.sel {
+      background: var(--white);
+      border: 1px solid var(--line);
+    }
+
+    .qitem:hover:not(.now):not(.sel) {
+      background: rgba(0, 0, 0, 0.025);
+    }
+
+    .qavatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      flex-shrink: 0;
+    }
+
+    .qinfo {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .qname {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .qmeta {
+      font-size: 10.5px;
+      color: var(--text-dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .qtag {
+      font-family: 'DM Mono', monospace;
+      font-size: 8.5px;
+      letter-spacing: .04em;
+      padding: 2px 5px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      text-transform: uppercase;
+    }
+
+    .qtag.live {
+      background: var(--red-bg);
+      color: var(--red);
+    }
+
+    .qtag.esc {
+      background: var(--amber-bg);
+      color: var(--amber-text);
+      border: 1px solid var(--amber-line);
+    }
+
+    .qtag.done {
+      background: var(--green-bg);
+      color: var(--green);
+    }
+
+    .qtag.queued {
+      background: #EFEAE0;
+      color: var(--text-dim);
+    }
+
+    .qmore {
+      font-size: 11px;
+      color: var(--text-faint);
+      text-align: center;
+      margin-top: 10px;
+      font-style: italic;
+    }
+
+    /* ===== SHARED: right pane ===== */
+    .pane {
+      flex: 1;
+      overflow-y: auto;
+      padding: 26px 32px 40px;
+      min-width: 0;
+    }
+
+    .pane-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 22px;
+    }
+
+    .greet {
+      font-family: 'Lora', serif;
+      font-style: italic;
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .greet b {
+      font-style: normal;
+    }
+
+    .subline {
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    .pane-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn {
+      font-family: 'Figtree';
+      font-size: 12.5px;
+      font-weight: 600;
+      padding: 9px 15px;
+      border-radius: 7px;
+      cursor: pointer;
+      border: 1px solid var(--line);
+      background: var(--white);
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn svg {
+      width: 13px;
+      height: 13px;
+    }
+
+    .btn.primary {
+      background: var(--ink);
+      color: #fff;
+      border-color: var(--ink);
+    }
+
+    /* stat row */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 18px;
+      background: var(--white);
+    }
+
+    .stat {
+      padding: 16px 20px;
+      border-right: 1px solid var(--line);
+    }
+
+    .stat:last-child {
+      border-right: none;
+    }
+
+    .stat-num {
+      font-family: 'Lora', serif;
+      font-size: 26px;
+      font-weight: 600;
+      color: var(--ink);
+      line-height: 1;
+    }
+
+    .stat-num.gold {
+      color: var(--gold-deep);
+    }
+
+    .stat-num.green {
+      color: var(--green);
+    }
+
+    .stat-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 9.5px;
+      letter-spacing: .06em;
+      color: var(--text-faint);
+      text-transform: uppercase;
+      margin-top: 6px;
+    }
+
+    /* noticed/escalation */
+    .esc-card {
+      background: var(--white);
+      border: 1px solid var(--red);
+      border-left: 3px solid var(--red);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .esc-ico {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--red-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .esc-ico svg {
+      width: 16px;
+      height: 16px;
+      color: var(--red);
+    }
+
+    .esc-text {
+      flex: 1;
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    .esc-text b {
+      color: var(--ink);
+    }
+
+    .esc-text .meta {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+
+    .btn-small {
+      font-family: 'Figtree';
+      font-size: 12px;
+      font-weight: 600;
+      padding: 7px 13px;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+    }
+
+    .btn-small.dark {
+      background: var(--ink);
+      color: #fff;
+      border-color: var(--ink);
+    }
+
+    .livecard {
+      border: 1px solid #D6CBA8;
+      background: linear-gradient(180deg, #FDFBF6, #F8F3E8);
+      border-radius: 12px;
+      padding: 18px 20px;
+      margin-bottom: 18px;
+      position: relative;
+    }
+
+    .livecard::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 14px;
+      bottom: 14px;
+      width: 3px;
+      background: var(--red);
+      border-radius: 0 3px 3px 0;
+    }
+
+    .live-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .live-tag {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'DM Mono', monospace;
+      font-size: 10.5px;
+      letter-spacing: .06em;
+      color: var(--red);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .pulse {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--red);
+      animation: pulse 1.4s infinite;
+    }
+
+    .live-timer {
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    .live-main {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+
+    .live-person {
+      flex: 1;
+    }
+
+    .live-name-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 3px;
+    }
+
+    .live-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .live-dir {
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #fff;
+      border: 1px solid var(--line);
+      color: var(--text-dim);
+    }
+
+    .live-reason {
+      font-size: 12.5px;
+      color: var(--text-dim);
+    }
+
+    .live-snippet {
+      margin-top: 10px;
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 12.5px;
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .live-snippet .who {
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .live-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: flex-end;
+    }
+
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 16px 18px;
+    }
+
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 11px;
+    }
+
+    .card-title {
+      font-family: 'DM Mono', monospace;
+      font-size: 9.5px;
+      letter-spacing: .07em;
+      color: var(--text-faint);
+      text-transform: uppercase;
+    }
+
+    .card-link {
+      font-size: 11.5px;
+      color: var(--gold-deep);
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .row-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 8px 0;
+      border-top: 1px solid var(--line-soft);
+      font-size: 12.5px;
+    }
+
+    .row-item:first-child {
+      border-top: none;
+      padding-top: 0;
+    }
+
+    .row-name {
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .row-sub {
+      color: var(--text-dim);
+      font-size: 11px;
+      margin-top: 1px;
+    }
+
+    .row-right {
+      text-align: right;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: var(--text-dim);
+      flex-shrink: 0;
+      padding-left: 10px;
+    }
+
+    .pill-out {
+      font-size: 9.5px;
+      padding: 1.5px 6px;
+      border-radius: 4px;
+      font-family: 'DM Mono', monospace;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .pill-out.resolved {
+      background: var(--green-bg);
+      color: var(--green);
+    }
+
+    .pill-out.booked {
+      background: var(--blue-bg);
+      color: var(--blue);
+    }
+
+    .pill-out.handoff {
+      background: var(--amber-bg);
+      color: var(--amber-text);
+    }
+
+    .footer-strip {
+      font-size: 11px;
+      color: var(--text-faint);
+      display: flex;
+      justify-content: space-between;
+      padding-top: 6px;
+    }
+
+    .footer-strip span b {
+      color: var(--text-dim);
+    }
+
+    /* ===== LIVE CALL SPECIFIC ===== */
+    .left-live {
+      width: 280px;
+      border-right: 1px solid var(--line);
+      padding: 20px 16px;
+      overflow-y: auto;
+      background: var(--canvas-2);
+      flex-shrink: 0;
+    }
+
+    .sec-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 9.5px;
+      letter-spacing: .07em;
+      color: var(--text-faint);
+      text-transform: uppercase;
+      margin-bottom: 9px;
+    }
+
+    .id-card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 18px;
+    }
+
+    .id-status {
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: var(--green);
+      margin-bottom: 6px;
+    }
+
+    .id-name {
+      font-size: 14.5px;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 2px;
+    }
+
+    .id-meta {
+      font-size: 11.5px;
+      color: var(--text-dim);
+    }
+
+    .id-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11.5px;
+      padding: 5px 0;
+      border-top: 1px solid var(--line-soft);
+      margin-top: 6px;
+    }
+
+    .id-row b {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .class-track {
+      margin-bottom: 18px;
+    }
+
+    .class-step {
+      display: flex;
+      gap: 9px;
+      padding: 7px 0;
+      align-items: flex-start;
+    }
+
+    .class-bullet {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 1px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .class-bullet.done {
+      background: var(--green);
+    }
+
+    .class-bullet.done svg {
+      width: 9px;
+      height: 9px;
+      stroke: #fff;
+    }
+
+    .class-bullet.active {
+      background: var(--amber-bg);
+      border: 2px solid var(--gold);
+    }
+
+    .class-bullet.pending {
+      background: var(--white);
+      border: 1.5px solid var(--line);
+    }
+
+    .class-text {
+      font-size: 12px;
+      color: var(--text-dim);
+      line-height: 1.4;
+    }
+
+    .class-text.active {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .class-line {
+      width: 1px;
+      height: 14px;
+      background: var(--line);
+      margin-left: 7.5px;
+    }
+
+    .flags-box {
+      background: var(--amber-bg);
+      border: 1px solid var(--amber-line);
+      border-radius: 9px;
+      padding: 11px 12px;
+      font-size: 11.5px;
+      color: #5C4715;
+      line-height: 1.5;
+    }
+
+    .flags-box b {
+      display: block;
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      letter-spacing: .06em;
+      color: var(--amber-text);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .center-live {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .transcript-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 22px 26px;
+    }
+
+    .msg {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+      max-width: 560px;
+    }
+
+    .msg.right {
+      margin-left: auto;
+      flex-direction: row-reverse;
+    }
+
+    .msg-avatar {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .msg-bubble {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 13px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .msg.right .msg-bubble {
+      background: var(--ink);
+      color: #fff;
+      border-color: var(--ink);
+    }
+
+    .msg-who {
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      letter-spacing: .05em;
+      color: var(--text-faint);
+      text-transform: uppercase;
+      margin-bottom: 3px;
+    }
+
+    .msg.right .msg-who {
+      text-align: right;
+      color: #8C96AB;
+    }
+
+    .msg-ar {
+      color: var(--text-dim);
+      font-size: 12px;
+      margin-top: 3px;
+      font-style: italic;
+    }
+
+    .msg.right .msg-ar {
+      color: #A9B2C6;
+    }
+
+    .typing {
+      display: flex;
+      gap: 4px;
+      padding: 9px 13px;
+    }
+
+    .typing span {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--text-faint);
+      animation: bounce 1.2s infinite;
+    }
+
+    .typing span:nth-child(2) {
+      animation-delay: .15s;
+    }
+
+    .typing span:nth-child(3) {
+      animation-delay: .3s;
+    }
+
+    @keyframes bounce {
+
+      0%,
+      60%,
+      100% {
+        transform: translateY(0);
+      }
+
+      30% {
+        transform: translateY(-4px);
+      }
+    }
+
+    .call-controls {
+      border-top: 1px solid var(--line);
+      padding: 14px 26px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--white);
+    }
+
+    .ctrl-btn {
+      font-family: 'Figtree';
+      font-size: 12.5px;
+      font-weight: 600;
+      padding: 9px 15px;
+      border-radius: 7px;
+      cursor: pointer;
+      border: 1px solid var(--line);
+      background: var(--white);
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .ctrl-btn.danger {
+      background: var(--red-bg);
+      color: var(--red);
+      border-color: #E8C7C3;
+    }
+
+    .ctrl-btn.dark {
+      background: var(--ink);
+      color: #fff;
+      border-color: var(--ink);
+    }
+
+    .ctrl-spacer {
+      flex: 1;
+    }
+
+    .ctrl-meta {
+      font-family: 'DM Mono', monospace;
+      font-size: 10.5px;
+      color: var(--text-faint);
+    }
+
+    .right-panel {
+      width: 340px;
+      border-left: 1px solid var(--line);
+      padding: 20px 18px;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    .reason-card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 15px;
+      margin-bottom: 14px;
+    }
+
+    .reason-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 11px;
+    }
+
+    .reason-ico {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      background: var(--blue-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .reason-ico svg {
+      width: 12px;
+      height: 12px;
+      color: var(--blue);
+    }
+
+    .reason-title {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .06em;
+      color: var(--text-faint);
+      text-transform: uppercase;
+    }
+
+    .match-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 6px 0;
+      border-top: 1px solid var(--line-soft);
+      font-size: 12px;
+    }
+
+    .match-row:first-of-type {
+      border-top: none;
+    }
+
+    .match-label {
+      color: var(--text-dim);
+    }
+
+    .match-val {
+      font-weight: 600;
+      color: var(--ink);
+      text-align: right;
+    }
+
+    .conf-pill {
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      padding: 1.5px 6px;
+      border-radius: 4px;
+      background: var(--green-bg);
+      color: var(--green);
+      margin-left: 6px;
+    }
+
+    .doctor-pick {
+      border: 1.5px solid var(--gold);
+      background: #FCF8EF;
+      border-radius: 9px;
+      padding: 12px;
+      margin-top: 10px;
+    }
+
+    .doctor-pick-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      letter-spacing: .06em;
+      color: var(--gold-deep);
+      text-transform: uppercase;
+      margin-bottom: 7px;
+    }
+
+    .doctor-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .doctor-av {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #1F4FA0;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .doctor-info {
+      flex: 1;
+    }
+
+    .doctor-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .doctor-spec {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .doctor-slot {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: var(--gold-deep);
+      font-weight: 600;
+      margin-top: 6px;
+    }
+
+    .pick-actions {
+      display: flex;
+      gap: 7px;
+      margin-top: 10px;
+    }
+
+    .pick-btn {
+      flex: 1;
+      font-size: 11.5px;
+      font-weight: 600;
+      padding: 7px;
+      border-radius: 6px;
+      text-align: center;
+      cursor: pointer;
+    }
+
+    .pick-btn.accept {
+      background: var(--ink);
+      color: #fff;
+    }
+
+    .pick-btn.adjust {
+      background: var(--white);
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+
+    .action-log {
+      display: flex;
+      gap: 9px;
+      padding: 8px 0;
+      border-top: 1px solid var(--line-soft);
+      align-items: flex-start;
+    }
+
+    .action-log:first-of-type {
+      border-top: none;
+    }
+
+    .action-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      margin-top: 5px;
+      flex-shrink: 0;
+    }
+
+    .action-log.pending .action-dot {
+      background: var(--text-faint);
+    }
+
+    .action-text {
+      font-size: 12px;
+      color: var(--text);
+      line-height: 1.4;
+    }
+
+    .action-time {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      color: var(--text-faint);
+      margin-top: 1px;
+    }
+
+    .boundary-note {
+      background: var(--canvas-2);
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 11px 12px;
+      font-size: 11px;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+
+    .boundary-note b {
+      color: var(--text);
+    }
+
+    /* ===== PATIENT CALL DETAIL ===== */
+    .detail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 18px;
+    }
+
+    .detail-back {
+      font-size: 11.5px;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+
+    .detail-name {
+      font-family: 'Lora', serif;
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .detail-meta {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    .detail-meta b {
+      color: var(--text);
+    }
+
+    .tabbar {
+      display: flex;
+      gap: 4px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 18px;
+    }
+
+    .tabbtn {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-dim);
+      padding: 9px 4px;
+      margin-right: 18px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+    }
+
+    .tabbtn.active {
+      color: var(--ink);
+      font-weight: 700;
+      border-bottom-color: var(--gold);
+    }
+
+    .tabpanel {
+      display: none;
+    }
+
+    .tabpanel.active {
+      display: block;
+    }
+
+    .summary-block {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-bottom: 14px;
+    }
+
+    .sb-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 9.5px;
+      letter-spacing: .07em;
+      color: var(--gold-deep);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sb-letter {
+      width: 20px;
+      height: 20px;
+      border-radius: 5px;
+      background: var(--ink);
+      color: #fff;
+      font-family: 'Figtree';
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .sb-body {
+      font-size: 13.5px;
+      line-height: 1.65;
+      color: var(--text);
+    }
+
+    .sb-body b {
+      color: var(--ink);
+    }
+
+    .source-tag {
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      background: var(--blue-bg);
+      color: var(--blue);
+      padding: 2px 7px;
+      border-radius: 4px;
+      margin-left: 8px;
+    }
+
+    .outcome-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .out-card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 15px 17px;
+    }
+
+    .out-card-title {
+      font-family: 'DM Mono', monospace;
+      font-size: 9.5px;
+      letter-spacing: .06em;
+      color: var(--text-faint);
+      text-transform: uppercase;
+      margin-bottom: 9px;
+    }
+
+    .out-item {
+      font-size: 12.5px;
+      color: var(--text);
+      padding: 5px 0;
+      border-top: 1px solid var(--line-soft);
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    }
+
+    .out-item:first-child {
+      border-top: none;
+    }
+
+    .out-check {
+      color: var(--green);
+      flex-shrink: 0;
+    }
+
+    .transcript-box {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 18px 20px;
+      max-height: 520px;
+      overflow-y: auto;
+    }
+
+    .tline {
+      display: flex;
+      gap: 12px;
+      padding: 9px 0;
+      border-top: 1px solid var(--line-soft);
+      font-size: 13px;
+    }
+
+    .tline:first-child {
+      border-top: none;
+    }
+
+    .ttime {
+      font-family: 'DM Mono', monospace;
+      font-size: 10.5px;
+      color: var(--text-faint);
+      flex-shrink: 0;
+      width: 42px;
+      padding-top: 1px;
+    }
+
+    .tspeaker {
+      font-weight: 700;
+      color: var(--ink);
+      flex-shrink: 0;
+      width: 64px;
+    }
+
+    .ttext {
+      color: var(--text);
+      line-height: 1.5;
+      flex: 1;
+    }
+
+    .ttext .tar {
+      color: var(--text-dim);
+      font-style: italic;
+      display: block;
+      margin-top: 2px;
+    }
+
+    /* ===== ASSISTANT/FRONT DESK QUEUE ===== */
+    .table-wrap {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead th {
+      font-family: 'DM Mono', monospace;
+      font-size: 9.5px;
+      letter-spacing: .06em;
+      color: var(--text-faint);
+      text-transform: uppercase;
+      text-align: left;
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--line);
+      background: var(--canvas-2);
+    }
+
+    tbody td {
+      padding: 11px 14px;
+      font-size: 12.5px;
+      border-bottom: 1px solid var(--line-soft);
+      color: var(--text);
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    tbody tr:hover {
+      background: rgba(0, 0, 0, 0.015);
+    }
+
+    .t-name {
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .t-sub {
+      font-size: 10.5px;
+      color: var(--text-dim);
+    }
+
+    .dir-pill {
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--canvas-2);
+      color: var(--text-dim);
+    }
+
+    .status-pill {
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 4px;
+      letter-spacing: .04em;
+    }
+
+    .status-pill.resolved {
+      background: var(--green-bg);
+      color: var(--green);
+    }
+
+    .status-pill.booked {
+      background: var(--blue-bg);
+      color: var(--blue);
+    }
+
+    .status-pill.handoff {
+      background: var(--amber-bg);
+      color: var(--amber-text);
+    }
+
+    .status-pill.live {
+      background: var(--red-bg);
+      color: var(--red);
+    }
+
+    .status-pill.queued {
+      background: var(--canvas-2);
+      color: var(--text-dim);
+    }
+
+    .filter-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+      align-items: center;
+    }
+
+    .fchip {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-dim);
+      background: var(--white);
+      border: 1px solid var(--line);
+      padding: 6px 12px;
+      border-radius: 7px;
+      cursor: pointer;
+    }
+
+    .fchip.active {
+      background: var(--ink);
+      color: #fff;
+      border-color: var(--ink);
+    }
+
+    .table-action {
+      font-size: 11.5px;
+      color: var(--gold-deep);
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    /* ===== SETTINGS ===== */
+    .settings-section {
+      margin-bottom: 24px;
+    }
+
+    .settings-title {
+      font-family: 'Lora', serif;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 3px;
+    }
+
+    .settings-sub {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-bottom: 12px;
+    }
+
+    .setting-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-top: none;
+      padding: 13px 18px;
+    }
+
+    .setting-row:first-of-type {
+      border-top: 1px solid var(--line);
+      border-radius: 10px 10px 0 0;
+    }
+
+    .setting-row:last-of-type {
+      border-radius: 0 0 10px 10px;
+    }
+
+    .setting-row.single {
+      border-radius: 10px;
+      border-top: 1px solid var(--line);
+    }
+
+    .setting-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .setting-desc {
+      font-size: 11.5px;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+
+    .toggle {
+      width: 38px;
+      height: 21px;
+      border-radius: 11px;
+      background: var(--line);
+      position: relative;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .toggle.on {
+      background: var(--ink);
+    }
+
+    .toggle::after {
+      content: '';
+      position: absolute;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      background: #fff;
+      top: 2px;
+      left: 2px;
+      transition: left .15s;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+
+    .toggle.on::after {
+      left: 19px;
+    }
+
+    .setting-val {
+      font-size: 12px;
+      color: var(--gold-deep);
+      font-weight: 600;
+    }
+
+    .doc-schedule-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-top: none;
+      padding: 12px 18px;
+    }
+
+    .doc-schedule-row:first-of-type {
+      border-top: 1px solid var(--line);
+      border-radius: 10px 10px 0 0;
+    }
+
+    .doc-schedule-row:last-of-type {
+      border-radius: 0 0 10px 10px;
+    }
+
+    .ds-av {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: #1F4FA0;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .ds-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .ds-spec {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .ds-spacer {
+      flex: 1;
+    }
+
+    .ds-status {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      text-transform: uppercase;
+      color: var(--green);
+    }
+
+    .script-box {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 10px;
+    }
+
+    .script-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+
+    .script-text {
+      font-size: 12px;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- ICON RAIL -->
+    <div class="rail">
+     <img src="https://medory.ai/wp-content/uploads/2026/06/Blue-White-Favicon.png" alt="" width="24px">
+      <div class="rail-icon" title="Visits"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.7">
+          <rect x="3" y="5" width="18" height="16" rx="2" />
+          <path d="M8 3v4M16 3v4M3 10h18" />
+        </svg></div>
+      <div class="rail-icon" title="Notes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.7">
+          <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+          <path d="M14 3v6h6" />
+        </svg></div>
+      <div class="rail-icon" title="Context"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.7">
+          <path d="M18 10a6 6 0 1 0-12 0c0 3 2 5 2 8h8c0-3 2-5 2-8z" />
+          <path d="M9 21h6" />
+        </svg></div>
+      <div class="rail-icon" title="Labs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+          <path d="M9 2v6L4 17a2 2 0 0 0 2 3h12a2 2 0 0 0 2-3l-5-9V2" />
+          <path d="M9 2h6" />
+        </svg></div>
+      <div class="rail-icon active" id="rail-voice" title="Voice Agent" onclick="showScreen('home')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M3 11a1 1 0 0 1 1-1h2l3-4v12l-3-4H4a1 1 0 0 1-1-1z" />
+          <path d="M16 8a4 4 0 0 1 0 8M19 5a8 8 0 0 1 0 14" />
+        </svg>
+        <div class="dot"></div>
+      </div>
+      <div class="rail-icon" title="Medical Coder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.7">
+          <rect x="4" y="4" width="16" height="16" rx="2" />
+          <path d="M8 9h8M8 13h5" />
+        </svg></div>
+      <div class="rail-icon" title="Diagnosis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.7">
+          <circle cx="11" cy="11" r="7" />
+          <path d="M21 21l-4.3-4.3" />
+        </svg></div>
+      <div class="rail-icon" title="Plans"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.7">
+          <path d="M9 2h6l1 4H8z" />
+          <rect x="5" y="6" width="14" height="16" rx="2" />
+        </svg></div>
+      <div class="rail-icon" title="Prescriptions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.7">
+          <path d="M5 19l14-14M9 3h6l3 3-3 3H9z" />
+        </svg></div>
+      <div class="rail-icon" title="Research"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.7">
+          <circle cx="10" cy="10" r="6" />
+          <path d="M20 20l-4.5-4.5" />
+        </svg></div>
+      <div class="rail-icon" title="Interpreter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.7">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M3 12h18M12 3a13 13 0 0 1 0 18 13 13 0 0 1 0-18z" />
+        </svg></div>
+      <div class="rail-icon" title="Alerts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.7">
+          <path d="M12 3a6 6 0 0 0-6 6v3l-2 4h16l-2-4V9a6 6 0 0 0-6-6z" />
+          <path d="M9.5 20a2.5 2.5 0 0 0 5 0" />
+        </svg>
+        <div class="dot"></div>
+      </div>
+      <div class="rail-spacer"></div>
+      <div class="rail-gear" id="rail-settings" title="Voice Agent Settings" onclick="showScreen('settings')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+          <circle cx="12" cy="12" r="3" />
+          <path
+            d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.5 1z" />
+        </svg>
+      </div>
+    </div>
+
+    <div class="main">
+
+      <!-- PROTOTYPE SCREEN SWITCHER -->
+      <div class="proto-nav">
+        <span class="proto-label">Voice Agent</span>
+        <div class="proto-tab active" data-screen="home" onclick="showScreen('home')">1 · Home dashboard</div>
+        <div class="proto-tab" data-screen="live" onclick="showScreen('live')">2 · Live call</div>
+        <div class="proto-tab" data-screen="detail" onclick="showScreen('detail')">3 · Patient call detail</div>
+        <div class="proto-tab" data-screen="frontdesk" onclick="showScreen('frontdesk')">4 · Front-desk queue</div>
+        <div class="proto-tab" data-screen="settings" onclick="showScreen('settings')">5 · Agent settings</div>
+      </div>
+
+      <!-- ============ SCREEN 1: HOME DASHBOARD ============ -->
+      <div class="screen active" id="screen-home">
+        <div class="topbar">
+          <div class="topbar-brand">
+            <img src="https://medory.ai/wp-content/uploads/2026/05/Medory-Blue-and-White-Logo.png" alt="" width="80px">
+          </div>
+          <div class="badge-pill">Voice Agent</div>
+          <div class="topbar-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>Search calls by patient, MRN, or phone number…<div class="kbd">⌘K</div>
+          </div>
+          <div class="topbar-right">
+            <div class="topbar-alert">2 calls need review</div>
+            <div class="topbar-style">CHANNEL <b>Voice · AR / EN</b></div>
+            <div class="avatar">SH</div>
+            <div class="topbar-doc">Dr. Hassan</div>
+          </div>
+        </div>
+
+        <div class="content">
+          <div class="queue-panel">
+            <div class="queue-head">
+              <div class="queue-title">Today's calls</div>
+              <div class="queue-date">Tue 16 Jun</div>
+            </div>
+            <div class="queue-sub"><b>47 total</b> · 41 resolved · 2 live · 2 flagged</div>
+            <div class="queue-tabs">
+              <div class="qtab active">All</div>
+              <div class="qtab">Live</div>
+              <div class="qtab">Outbound</div>
+              <div class="qtab">Flags</div>
+            </div>
+
+            <div class="qgroup-label">Live now</div>
+            <div class="qitem now" onclick="showScreen('live')">
+              <div class="qavatar" style="background:#B3463F;">RK</div>
+              <div class="qinfo">
+                <div class="qname">Reema Khalil</div>
+                <div class="qmeta">Inbound · reported chest pain</div>
+              </div>
+              <div class="qtag live">Live</div>
+            </div>
+            <div class="qitem" onclick="showScreen('live')">
+              <div class="qavatar" style="background:#5C7FB8;">DW</div>
+              <div class="qinfo">
+                <div class="qname">Derrick Lin</div>
+                <div class="qmeta">Outbound · post-visit check-in</div>
+              </div>
+              <div class="qtag live">Live</div>
+            </div>
+
+            <div class="qgroup-label">Needs review</div>
+            <div class="qitem" onclick="showScreen('detail')">
+              <div class="qavatar" style="background:#8C6526;">CL</div>
+              <div class="qinfo">
+                <div class="qname">Camilla Lopez</div>
+                <div class="qmeta">Inbound · asthma symptoms</div>
+              </div>
+              <div class="qtag esc">Flag</div>
+            </div>
+            <div class="qitem" onclick="showScreen('detail')">
+              <div class="qavatar" style="background:#8C6526;">DP</div>
+              <div class="qinfo">
+                <div class="qname">Desiree Powell</div>
+                <div class="qmeta">Inbound · fall, mobility</div>
+              </div>
+              <div class="qtag esc">Flag</div>
+            </div>
+
+            <div class="qgroup-label">Earlier today</div>
+            <div class="qitem" onclick="showScreen('detail')">
+              <div class="qavatar" style="background:#6B7690;">AR</div>
+              <div class="qinfo">
+                <div class="qname">Ahmad Al-Rashidi</div>
+                <div class="qmeta">Outbound · lab results ready</div>
+              </div>
+              <div class="qtag done">Done</div>
+            </div>
+            <div class="qitem" onclick="showScreen('detail')">
+              <div class="qavatar" style="background:#6B7690;">RS</div>
+              <div class="qinfo">
+                <div class="qname">Riya Sharma</div>
+                <div class="qmeta">Inbound · booking request</div>
+              </div>
+              <div class="qtag done">Done</div>
+            </div>
+            <div class="qitem">
+              <div class="qavatar" style="background:#6B7690;">JO</div>
+              <div class="qinfo">
+                <div class="qname">James Okonkwo</div>
+                <div class="qmeta">Outbound · appt. reminder</div>
+              </div>
+              <div class="qtag queued">SMS sent</div>
+            </div>
+            <div class="qmore">+ 38 more calls today</div>
+          </div>
+
+          <div class="pane">
+            <div class="pane-top">
+              <div>
+                <div class="greet">Good morning, <b>Dr. Hassan.</b></div>
+                <div class="subline">Tuesday · 47 calls handled today · 2 live · all summaries route to patient context
+                </div>
+              </div>
+              <div class="pane-actions">
+                <div class="btn" onclick="showScreen('settings')"><svg viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9" />
+                  </svg>Configure agent</div>
+                <div class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 11a1 1 0 0 1 1-1h2l3-4v12l-3-4H4a1 1 0 0 1-1-1z" />
+                    <path d="M16 8a4 4 0 0 1 0 8" />
+                  </svg>Place a call</div>
+              </div>
+            </div>
+
+            <div class="stats">
+              <div class="stat">
+                <div class="stat-num">47</div>
+                <div class="stat-label">Calls today</div>
+              </div>
+              <div class="stat">
+                <div class="stat-num green">3h 12m</div>
+                <div class="stat-label">Front-desk time saved</div>
+              </div>
+              <div class="stat">
+                <div class="stat-num gold">87%</div>
+                <div class="stat-label">Resolved without human</div>
+              </div>
+              <div class="stat">
+                <div class="stat-num">2</div>
+                <div class="stat-label">Flagged for you</div>
+              </div>
+            </div>
+
+            <div class="esc-card">
+              <div class="esc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 3a6 6 0 0 0-6 6v3l-2 4h16l-2-4V9a6 6 0 0 0-6-6z" />
+                  <path d="M9.5 20a2.5 2.5 0 0 0 5 0" />
+                </svg></div>
+              <div class="esc-text"><b>Reema Khalil reported chest pain on an active call</b> — Voice Agent has paused
+                triage scripting and is keeping her on the line.<div class="meta">Started 00:42 ago · escalation sent to
+                  Alerts and front desk</div>
+              </div>
+              <div class="btn-small dark" onclick="showScreen('live')">Join call</div>
+            </div>
+
+            <div class="livecard">
+              <div class="live-top">
+                <div class="live-tag"><span class="pulse"></span>Live · outbound</div>
+                <div class="live-timer">02:18</div>
+              </div>
+              <div class="live-main">
+                <div class="live-person">
+                  <div class="live-name-row">
+                    <div class="live-name">Derrick Lin</div>
+                    <div class="live-dir">Post-visit check-in</div>
+                  </div>
+                  <div class="live-reason">Day-3 follow-up after lumbar strain visit · Arabic / English</div>
+                  <div class="live-snippet"><span class="who">Patient:</span> "الألم تحسن لكن لسه بحس بتنميل بسيط" <span
+                      style="color:var(--text-dim)">— pain improved, mild residual tingling reported</span></div>
+                </div>
+                <div class="live-actions">
+                  <div class="btn-small">Listen in</div>
+                  <div class="btn-small">View transcript</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid2">
+              <div class="card">
+                <div class="card-head">
+                  <div class="card-title">Recent outcomes</div>
+                  <div class="card-link" onclick="showScreen('frontdesk')">View all →</div>
+                </div>
+                <div class="row-item">
+                  <div>
+                    <div class="row-name">Ahmad Al-Rashidi</div>
+                    <div class="row-sub">Lab results ready — call placed, results explained</div>
+                  </div>
+                  <div class="row-right"><span class="pill-out resolved">Resolved</span></div>
+                </div>
+                <div class="row-item">
+                  <div>
+                    <div class="row-name">Riya Sharma</div>
+                    <div class="row-sub">New patient — booked Thu 10:00 with Dr. Hassan</div>
+                  </div>
+                  <div class="row-right"><span class="pill-out booked">Booked</span></div>
+                </div>
+                <div class="row-item">
+                  <div>
+                    <div class="row-name">Camilla Lopez</div>
+                    <div class="row-sub">Asthma symptoms worsening — handed to front desk</div>
+                  </div>
+                  <div class="row-right"><span class="pill-out handoff">Handoff</span></div>
+                </div>
+                <div class="row-item">
+                  <div>
+                    <div class="row-name">Layla Ibrahim</div>
+                    <div class="row-sub">Gestational diabetes — reminder confirmed, no action</div>
+                  </div>
+                  <div class="row-right"><span class="pill-out resolved">Resolved</span></div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-head">
+                  <div class="card-title">Automation queue</div>
+                  <div class="card-link">Manage →</div>
+                </div>
+                <div class="row-item">
+                  <div>
+                    <div class="row-name">12 reminder calls</div>
+                    <div class="row-sub">Tomorrow's appointments · scheduled 17:00</div>
+                  </div>
+                  <div class="row-right">Outbound</div>
+                </div>
+                <div class="row-item">
+                  <div>
+                    <div class="row-name">3 lab-ready notifications</div>
+                    <div class="row-sub">Results synced from Cerner in last hour</div>
+                  </div>
+                  <div class="row-right">Outbound</div>
+                </div>
+                <div class="row-item">
+                  <div>
+                    <div class="row-name">5 post-visit check-ins</div>
+                    <div class="row-sub">48hr follow-up window, day-2 cohort</div>
+                  </div>
+                  <div class="row-right">Outbound</div>
+                </div>
+                <div class="row-item">
+                  <div>
+                    <div class="row-name">No-show recovery</div>
+                    <div class="row-sub">Fatima Al-Zaabi missed 11:00 slot — call queued</div>
+                  </div>
+                  <div class="row-right">Queued</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="footer-strip"><span>✓ All calls transcribed, summarized, and written to patient context ·
+                <b>Encrypted · audit logged</b></span><span>Avg. call handled in <b>1m 54s</b></span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ SCREEN 2: LIVE CALL ============ -->
+      <div class="screen" id="screen-live">
+        <div class="topbar rec">
+          <div class="rec-tag"><span class="rec-dot"></span>Live · Inbound</div>
+          <div class="topbar-divider"></div>
+          <div class="topbar-caller">+971 50 412 7765 <span>caller not yet matched to MRN — building profile live</span>
+          </div>
+          <div class="lang-pill">AR · EN</div>
+          <div class="topbar-right">
+            <div class="timer">01:47</div>
+            <div class="avatar">SH</div>
+          </div>
+        </div>
+
+        <div class="content">
+          <div class="left-live">
+            <div class="sec-label">Caller</div>
+            <div class="id-card">
+              <div class="id-status">● Profile building</div>
+              <div class="id-name">Yusuf Al-Marzouqi</div>
+              <div class="id-meta">New patient · no existing MRN</div>
+              <div class="id-row"><span>Insurance</span><b>Daman — Enhanced</b></div>
+              <div class="id-row"><span>DOB given</span><b>14 Mar 1989</b></div>
+              <div class="id-row"><span>Verified</span><b>Phone + DOB</b></div>
+            </div>
+
+            <div class="sec-label">Call classification</div>
+            <div class="class-track">
+              <div class="class-step">
+                <div class="class-bullet done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="3">
+                    <path d="M5 12l5 5L20 7" />
+                  </svg></div>
+                <div class="class-text">Identity captured</div>
+              </div>
+              <div class="class-line"></div>
+              <div class="class-step">
+                <div class="class-bullet done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="3">
+                    <path d="M5 12l5 5L20 7" />
+                  </svg></div>
+                <div class="class-text">Reason for call: new symptom</div>
+              </div>
+              <div class="class-line"></div>
+              <div class="class-step">
+                <div class="class-bullet active"></div>
+                <div class="class-text active">Matching symptom → specialty</div>
+              </div>
+              <div class="class-line"></div>
+              <div class="class-step">
+                <div class="class-bullet pending"></div>
+                <div class="class-text">Booking confirmation</div>
+              </div>
+              <div class="class-line"></div>
+              <div class="class-step">
+                <div class="class-bullet pending"></div>
+                <div class="class-text">Note + automations</div>
+              </div>
+            </div>
+
+            <div class="sec-label">Symptom signal</div>
+            <div class="flags-box"><b>Detected from conversation</b>Persistent right-sided abdominal discomfort, 5 days,
+              worse after eating. No fever reported. Not flagged urgent — routed as routine specialist booking, not
+              escalation.</div>
+          </div>
+
+          <div class="center-live">
+            <div class="transcript-area">
+              <div class="msg">
+                <div class="msg-avatar" style="background:#5C7FB8;">YA</div>
+                <div>
+                  <div class="msg-who">Patient · 00:08</div>
+                  <div class="msg-bubble">مرحبا، عندي ألم في البطن من جهة اليمين من خمس أيام تقريبا<div class="msg-ar">
+                      Hi, I've had pain on the right side of my stomach for about five days.</div>
+                  </div>
+                </div>
+              </div>
+              <div class="msg right">
+                <div class="msg-avatar" style="background:#0B1220;">M</div>
+                <div>
+                  <div class="msg-who">Medory</div>
+                  <div class="msg-bubble">I'm sorry to hear that. Is the pain constant, or does it come and go — and
+                    does it get worse after eating?</div>
+                </div>
+              </div>
+              <div class="msg">
+                <div class="msg-avatar" style="background:#5C7FB8;">YA</div>
+                <div>
+                  <div class="msg-who">Patient · 00:34</div>
+                  <div class="msg-bubble">نعم، بعد الأكل يصير أسوأ. ما عندي حرارة بس الألم مستمر<div class="msg-ar">Yes,
+                      it's worse after eating. No fever, but the pain is constant.</div>
+                  </div>
+                </div>
+              </div>
+              <div class="msg right">
+                <div class="msg-avatar" style="background:#0B1220;">M</div>
+                <div>
+                  <div class="msg-who">Medory</div>
+                  <div class="msg-bubble">Thank you for explaining that clearly. This sounds like something our
+                    gastroenterology team should look at directly rather than a general consultation. Let me check who's
+                    available soon.</div>
+                </div>
+              </div>
+              <div class="msg">
+                <div class="msg-avatar" style="background:#5C7FB8;">YA</div>
+                <div>
+                  <div class="msg-who">Patient · 01:21</div>
+                  <div class="msg-bubble">تمام، حابب أحد قريب من الإمارات مول إذا ممكن<div class="msg-ar">Okay, I'd
+                      prefer somewhere close to Mall of the Emirates if possible.</div>
+                  </div>
+                </div>
+              </div>
+              <div class="msg right">
+                <div class="msg-avatar" style="background:#0B1220;">M</div>
+                <div class="msg-bubble typing"><span></span><span></span><span></span></div>
+              </div>
+            </div>
+            <div class="call-controls">
+              <div class="ctrl-btn">Listen in</div>
+              <div class="ctrl-btn danger">Escalate to human</div>
+              <div class="ctrl-spacer"></div>
+              <div class="ctrl-meta">Encrypted · audit logged · 312 words captured</div>
+              <div class="ctrl-btn dark">End call</div>
+            </div>
+          </div>
+
+          <div class="right-panel">
+            <div class="reason-card">
+              <div class="reason-head">
+                <div class="reason-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="7" />
+                    <path d="M21 21l-4.3-4.3" />
+                  </svg></div>
+                <div class="reason-title">Specialty match</div>
+              </div>
+              <div class="match-row"><span class="match-label">Symptom pattern</span><span class="match-val">RUQ pain,
+                  postprandial</span></div>
+              <div class="match-row"><span class="match-label">Suggests</span><span class="match-val">Gastroenterology
+                  <span class="conf-pill">High</span></span></div>
+              <div class="match-row"><span class="match-label">Ruled out</span><span class="match-val">General
+                  medicine</span></div>
+            </div>
+
+            <div class="reason-card">
+              <div class="reason-head">
+                <div class="reason-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="5" width="18" height="16" rx="2" />
+                    <path d="M8 3v4M16 3v4M3 10h18" />
+                  </svg></div>
+                <div class="reason-title">Schedule check — live</div>
+              </div>
+              <div class="match-row"><span class="match-label">Source</span><span class="match-val">Cerner ·
+                  real-time</span></div>
+              <div class="match-row"><span class="match-label">Location filter</span><span class="match-val">Mall of the
+                  Emirates</span></div>
+              <div class="match-row"><span class="match-label">Within</span><span class="match-val">48 hours</span>
+              </div>
+              <div class="doctor-pick">
+                <div class="doctor-pick-label">Recommended</div>
+                <div class="doctor-row">
+                  <div class="doctor-av">MK</div>
+                  <div class="doctor-info">
+                    <div class="doctor-name">Dr. Mariam Khoury</div>
+                    <div class="doctor-spec">Gastroenterology · MOE Branch</div>
+                  </div>
+                </div>
+                <div class="doctor-slot">Thu 18 Jun · 11:30 AM</div>
+                <div class="pick-actions">
+                  <div class="pick-btn accept">Confirm with patient</div>
+                  <div class="pick-btn adjust">See other slots</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="reason-card">
+              <div class="reason-head">
+                <div class="reason-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 12l2 2 4-4" />
+                    <circle cx="12" cy="12" r="9" />
+                  </svg></div>
+                <div class="reason-title">Actions this call</div>
+              </div>
+              <div class="action-log">
+                <div class="action-dot"></div>
+                <div>
+                  <div class="action-text">Created new patient profile</div>
+                  <div class="action-time">00:11</div>
+                </div>
+              </div>
+              <div class="action-log">
+                <div class="action-dot"></div>
+                <div>
+                  <div class="action-text">Logged symptom note to chart</div>
+                  <div class="action-time">00:52</div>
+                </div>
+              </div>
+              <div class="action-log pending">
+                <div class="action-dot"></div>
+                <div>
+                  <div class="action-text">Book Dr. Khoury, send confirmation SMS</div>
+                  <div class="action-time">Pending confirmation</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="boundary-note"><b>Agent boundary:</b> Medory can recommend a specialist and proposed time based
+              on symptoms, but will not state a diagnosis or promise treatment outcomes to the caller. Booking is
+              confirmed once the <b>patient</b> accepts — no separate doctor confirmation is required to hold the slot.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ SCREEN 3: PATIENT CALL DETAIL ============ -->
+      <div class="screen" id="screen-detail">
+        <div class="topbar">
+          <div class="topbar-brand"><svg viewBox="0 0 24 24" fill="none">
+              <circle cx="7" cy="7" r="3" fill="#D9A24A" />
+              <circle cx="17" cy="7" r="3" fill="#5C7FB8" />
+              <circle cx="7" cy="17" r="3" fill="#5C7FB8" />
+              <circle cx="17" cy="17" r="3" fill="#D9A24A" />
+            </svg>Medory</div>
+          <div class="badge-pill">Voice Agent</div>
+          <div class="topbar-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>Camilla Lopez<div class="kbd">⌘K</div>
+          </div>
+          <div class="topbar-right">
+            <div class="avatar">SH</div>
+            <div class="topbar-doc">Dr. Hassan</div>
+          </div>
+        </div>
+        <div class="content">
+          <div class="queue-panel">
+            <div class="queue-head">
+              <div class="queue-title">Call history</div>
+            </div>
+            <div class="queue-sub">Camilla Lopez · <b>MRN-P002</b></div>
+            <div class="qgroup-label">This patient · 6 calls</div>
+            <div class="qitem sel">
+              <div class="qavatar" style="background:#8C6526;">CL</div>
+              <div class="qinfo">
+                <div class="qname">Today, 09:12</div>
+                <div class="qmeta">Inbound · asthma symptoms</div>
+              </div>
+              <div class="qtag esc">Flag</div>
+            </div>
+            <div class="qitem">
+              <div class="qavatar" style="background:#6B7690;">CL</div>
+              <div class="qinfo">
+                <div class="qname">Mar 25, 14:30</div>
+                <div class="qmeta">Outbound · post-visit check-in</div>
+              </div>
+              <div class="qtag done">Done</div>
+            </div>
+            <div class="qitem">
+              <div class="qavatar" style="background:#6B7690;">CL</div>
+              <div class="qinfo">
+                <div class="qname">Mar 18, 10:05</div>
+                <div class="qmeta">Inbound · refill request</div>
+              </div>
+              <div class="qtag done">Done</div>
+            </div>
+            <div class="qitem">
+              <div class="qavatar" style="background:#6B7690;">CL</div>
+              <div class="qinfo">
+                <div class="qname">Feb 02, 16:40</div>
+                <div class="qmeta">Outbound · appt. reminder</div>
+              </div>
+              <div class="qtag queued">SMS sent</div>
+            </div>
+            <div class="qmore">+ 2 earlier calls</div>
+          </div>
+
+          <div class="pane">
+            <div class="detail-back">← Back to Voice Agent</div>
+            <div class="detail-header">
+              <div>
+                <div class="detail-name">Camilla Lopez</div>
+                <div class="detail-meta">Inbound call · Today, 09:12 · 4 min 02 sec · <b>Arabic / English</b> · MRN-P002
+                </div>
+              </div>
+              <div class="pane-actions">
+                <div class="btn">Download summary</div>
+                <div class="btn primary">Mark reviewed</div>
+              </div>
+            </div>
+
+            <div class="tabbar">
+              <div class="tabbtn active" data-tab="summary" onclick="showTab('summary')">Summary</div>
+              <div class="tabbtn" data-tab="transcript" onclick="showTab('transcript')">Transcript</div>
+              <div class="tabbtn" data-tab="outcome" onclick="showTab('outcome')">Outcome & next steps</div>
+            </div>
+
+            <div class="tabpanel active" id="tab-summary">
+              <div class="summary-block">
+                <div class="sb-label"><span class="sb-letter">S</span>SUBJECTIVE <span class="source-tag">Voice
+                    Agent</span></div>
+                <div class="sb-body">Camilla Lopez called reporting <b>increased shortness of breath over 2 days</b> and
+                  more frequent use of her Albuterol inhaler — now 4–5 times daily versus her usual as-needed pattern.
+                  She denies chest pain or fever. Reports recent exposure to dust during home renovation.</div>
+              </div>
+              <div class="summary-block">
+                <div class="sb-label"><span class="sb-letter">A</span>ASSESSMENT <span class="source-tag">Voice
+                    Agent</span></div>
+                <div class="sb-body">Pattern consistent with an <b>asthma exacerbation</b>, possibly triggered by
+                  environmental irritant exposure. Frequency of rescue inhaler use exceeds safe threshold and warrants
+                  same-day clinical review rather than routine follow-up.</div>
+              </div>
+              <div class="summary-block">
+                <div class="sb-label"><span class="sb-letter">P</span>PLAN <span class="source-tag">Voice Agent</span>
+                </div>
+                <div class="sb-body">Call escalated to front desk for same-day slot. Patient advised to seek emergency
+                  care immediately if breathing worsens or inhaler use exceeds 6x/day before being seen. Patient
+                  education on dust avoidance provided. Flagged to Dr. Hassan for chart review before next visit.</div>
+              </div>
+            </div>
+
+            <div class="tabpanel" id="tab-transcript">
+              <div class="transcript-box">
+                <div class="tline">
+                  <div class="ttime">00:04</div>
+                  <div class="tspeaker">Medory</div>
+                  <div class="ttext">Hi Camilla, this is Medory calling from American Hospital Dubai. How can I help
+                    today?</div>
+                </div>
+                <div class="tline">
+                  <div class="ttime">00:11</div>
+                  <div class="tspeaker">Patient</div>
+                  <div class="ttext">عندي ضيق نفس من يومين وأستخدم البخاخ كثير<div class="tar">I've had shortness of
+                      breath for two days and I'm using my inhaler a lot.</div>
+                  </div>
+                </div>
+                <div class="tline">
+                  <div class="ttime">00:28</div>
+                  <div class="tspeaker">Medory</div>
+                  <div class="ttext">I understand. About how many times a day are you using the Albuterol inhaler right
+                    now?</div>
+                </div>
+                <div class="tline">
+                  <div class="ttime">00:35</div>
+                  <div class="tspeaker">Patient</div>
+                  <div class="ttext">أربع أو خمس مرات اليوم<div class="tar">Four or five times today.</div>
+                  </div>
+                </div>
+                <div class="tline">
+                  <div class="ttime">00:51</div>
+                  <div class="tspeaker">Medory</div>
+                  <div class="ttext">Thank you for telling me. That's more than usual for you, and I want to make sure
+                    you're seen today rather than waiting. I'm connecting you with our front desk now to get you the
+                    next available slot.</div>
+                </div>
+                <div class="tline">
+                  <div class="ttime">01:10</div>
+                  <div class="tspeaker">Patient</div>
+                  <div class="ttext">تمام شكراً<div class="tar">Okay, thank you.</div>
+                  </div>
+                </div>
+                <div class="tline">
+                  <div class="ttime">01:18</div>
+                  <div class="tspeaker">System</div>
+                  <div class="ttext" style="color:var(--text-faint);">— Call transferred to front desk queue, priority:
+                    same-day —</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="tabpanel" id="tab-outcome">
+              <div class="outcome-grid">
+                <div class="out-card">
+                  <div class="out-card-title">Actions taken</div>
+                  <div class="out-item"><span class="out-check">✓</span>Symptom note written to patient chart</div>
+                  <div class="out-item"><span class="out-check">✓</span>Escalated to front desk — same-day priority
+                  </div>
+                  <div class="out-item"><span class="out-check">✓</span>Safety guidance given (ER threshold: 6x/day
+                    inhaler use)</div>
+                  <div class="out-item"><span class="out-check">✓</span>Flagged to Dr. Hassan for chart review</div>
+                </div>
+                <div class="out-card">
+                  <div class="out-card-title">Handoff status</div>
+                  <div class="out-item"><span class="out-check">✓</span>Picked up by front desk — Layla A., 09:16</div>
+                  <div class="out-item"><span class="out-check">✓</span>Same-day slot booked — 13:30 with Dr. Hassan
+                  </div>
+                  <div class="out-item"><span class="out-check">✓</span>Confirmation SMS sent to patient</div>
+                  <div class="out-item" style="color:var(--text-dim);">Closed loop · no further action needed</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ SCREEN 4: FRONT DESK QUEUE ============ -->
+      <div class="screen" id="screen-frontdesk">
+        <div class="topbar">
+          <div class="topbar-brand"><svg viewBox="0 0 24 24" fill="none">
+              <circle cx="7" cy="7" r="3" fill="#D9A24A" />
+              <circle cx="17" cy="7" r="3" fill="#5C7FB8" />
+              <circle cx="7" cy="17" r="3" fill="#5C7FB8" />
+              <circle cx="17" cy="17" r="3" fill="#D9A24A" />
+            </svg>Medory</div>
+          <div class="badge-pill">Voice Agent · Front Desk</div>
+          <div class="topbar-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>Search all calls…<div class="kbd">⌘K</div>
+          </div>
+          <div class="topbar-right">
+            <div class="avatar">LA</div>
+            <div class="topbar-doc">Layla · Assistant</div>
+          </div>
+        </div>
+        <div class="content">
+          <div class="pane" style="padding:26px 32px 40px;">
+            <div class="pane-top">
+              <div>
+                <div class="greet">Good morning, <b>Layla.</b></div>
+                <div class="subline">Unfiltered view — every call today, including bookings and logistics not requiring
+                  a doctor</div>
+              </div>
+              <div class="pane-actions">
+                <div class="btn primary">Place a call</div>
+              </div>
+            </div>
+
+            <div class="stats">
+              <div class="stat">
+                <div class="stat-num">47</div>
+                <div class="stat-label">Total calls</div>
+              </div>
+              <div class="stat">
+                <div class="stat-num">14</div>
+                <div class="stat-label">Bookings handled</div>
+              </div>
+              <div class="stat">
+                <div class="stat-num gold">3</div>
+                <div class="stat-label">Awaiting your action</div>
+              </div>
+              <div class="stat">
+                <div class="stat-num green">31</div>
+                <div class="stat-label">Fully automated</div>
+              </div>
+            </div>
+
+            <div class="filter-row">
+              <div class="fchip active">All (47)</div>
+              <div class="fchip">Needs me (3)</div>
+              <div class="fchip">Inbound (28)</div>
+              <div class="fchip">Outbound (19)</div>
+              <div class="fchip">Bookings (14)</div>
+              <div class="fchip">Live (2)</div>
+            </div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Patient</th>
+                    <th>Direction</th>
+                    <th>Reason</th>
+                    <th>Time</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <div class="t-name">Reema Khalil</div>
+                      <div class="t-sub">New patient</div>
+                    </td>
+                    <td><span class="dir-pill">Inbound</span></td>
+                    <td>Chest pain reported</td>
+                    <td>09:51 · live</td>
+                    <td><span class="status-pill live">Escalated</span></td>
+                    <td class="table-action">Join</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="t-name">Derrick Lin</div>
+                      <div class="t-sub">MRN-P014</div>
+                    </td>
+                    <td><span class="dir-pill">Outbound</span></td>
+                    <td>Post-visit check-in</td>
+                    <td>09:48 · live</td>
+                    <td><span class="status-pill live">Live</span></td>
+                    <td class="table-action">Listen</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="t-name">Camilla Lopez</div>
+                      <div class="t-sub">MRN-P002</div>
+                    </td>
+                    <td><span class="dir-pill">Inbound</span></td>
+                    <td>Asthma symptoms</td>
+                    <td>09:12</td>
+                    <td><span class="status-pill handoff">Booked · 13:30</span></td>
+                    <td class="table-action">View</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="t-name">Desiree Powell</div>
+                      <div class="t-sub">MRN-P031</div>
+                    </td>
+                    <td><span class="dir-pill">Inbound</span></td>
+                    <td>Fall, mobility concern</td>
+                    <td>08:55</td>
+                    <td><span class="status-pill handoff">Needs you</span></td>
+                    <td class="table-action">Review</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="t-name">Ahmad Al-Rashidi</div>
+                      <div class="t-sub">MRN-P009</div>
+                    </td>
+                    <td><span class="dir-pill">Outbound</span></td>
+                    <td>Lab results ready</td>
+                    <td>08:40</td>
+                    <td><span class="status-pill resolved">Resolved</span></td>
+                    <td class="table-action">View</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="t-name">Riya Sharma</div>
+                      <div class="t-sub">New patient</div>
+                    </td>
+                    <td><span class="dir-pill">Inbound</span></td>
+                    <td>Booking request — Urdu</td>
+                    <td>08:22</td>
+                    <td><span class="status-pill booked">Booked Thu 10:00</span></td>
+                    <td class="table-action">View</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="t-name">James Okonkwo</div>
+                      <div class="t-sub">MRN-P018</div>
+                    </td>
+                    <td><span class="dir-pill">Outbound</span></td>
+                    <td>Appointment reminder</td>
+                    <td>08:15</td>
+                    <td><span class="status-pill queued">SMS sent</span></td>
+                    <td class="table-action">View</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="t-name">Fatima Al-Zaabi</div>
+                      <div class="t-sub">MRN-P022</div>
+                    </td>
+                    <td><span class="dir-pill">Outbound</span></td>
+                    <td>No-show recovery</td>
+                    <td>08:02</td>
+                    <td><span class="status-pill queued">Queued</span></td>
+                    <td class="table-action">View</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="t-name">Layla Ibrahim</div>
+                      <div class="t-sub">MRN-P011</div>
+                    </td>
+                    <td><span class="dir-pill">Outbound</span></td>
+                    <td>Gestational diabetes reminder</td>
+                    <td>07:50</td>
+                    <td><span class="status-pill resolved">Resolved</span></td>
+                    <td class="table-action">View</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="t-name">Hassan Bukhari</div>
+                      <div class="t-sub">MRN-P006</div>
+                    </td>
+                    <td><span class="dir-pill">Inbound</span></td>
+                    <td>Billing / insurance question</td>
+                    <td>07:41</td>
+                    <td><span class="status-pill resolved">Resolved</span></td>
+                    <td class="table-action">View</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ SCREEN 5: AGENT SETTINGS ============ -->
+      <div class="screen" id="screen-settings">
+        <div class="topbar">
+          <div class="topbar-brand"><svg viewBox="0 0 24 24" fill="none">
+              <circle cx="7" cy="7" r="3" fill="#D9A24A" />
+              <circle cx="17" cy="7" r="3" fill="#5C7FB8" />
+              <circle cx="7" cy="17" r="3" fill="#5C7FB8" />
+              <circle cx="17" cy="17" r="3" fill="#D9A24A" />
+            </svg>Medory</div>
+          <div class="badge-pill">Voice Agent · Settings</div>
+          <div class="topbar-right" style="margin-left:auto;">
+            <div class="avatar">SH</div>
+            <div class="topbar-doc">Dr. Hassan · Admin</div>
+          </div>
+        </div>
+        <div class="content">
+          <div class="pane" style="max-width:760px;">
+            <div class="pane-top">
+              <div>
+                <div class="greet" style="font-size:21px;">Voice Agent <b>configuration</b></div>
+                <div class="subline">Schedules it can see, what it's allowed to decide, and when it must hand off to a
+                  person.</div>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <div class="settings-title">Connected schedules</div>
+              <div class="settings-sub">Doctors and slots Voice Agent can read live to offer bookings.</div>
+              <div class="doc-schedule-row">
+                <div class="ds-av">MK</div>
+                <div>
+                  <div class="ds-name">Dr. Mariam Khoury</div>
+                  <div class="ds-spec">Gastroenterology · MOE Branch</div>
+                </div>
+                <div class="ds-spacer"></div>
+                <div class="ds-status">● Synced</div>
+              </div>
+              <div class="doc-schedule-row">
+                <div class="ds-av">SH</div>
+                <div>
+                  <div class="ds-name">Dr. Sarah Hassan</div>
+                  <div class="ds-spec">Internal Medicine · Al Sahar Group</div>
+                </div>
+                <div class="ds-spacer"></div>
+                <div class="ds-status">● Synced</div>
+              </div>
+              <div class="doc-schedule-row">
+                <div class="ds-av">AK</div>
+                <div>
+                  <div class="ds-name">Dr. Ahmed Khalid</div>
+                  <div class="ds-spec">Cardiology · Downtown Branch</div>
+                </div>
+                <div class="ds-spacer"></div>
+                <div class="ds-status" style="color:var(--text-faint);">○ Not synced</div>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <div class="settings-title">Call behavior</div>
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">Allow agent to recommend a specialist</div>
+                  <div class="setting-desc">Matches caller symptoms to specialty before offering a slot.</div>
+                </div>
+                <div class="toggle on"></div>
+              </div>
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">Auto-confirm booking on patient acceptance</div>
+                  <div class="setting-desc">No separate doctor confirmation required to hold the slot.</div>
+                </div>
+                <div class="toggle on"></div>
+              </div>
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">Two-way listening on outbound calls</div>
+                  <div class="setting-desc">Lets reminder/check-in calls pick up new symptoms, not just confirm.</div>
+                </div>
+                <div class="toggle on"></div>
+              </div>
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">Bilingual auto-detect (Arabic / English)</div>
+                  <div class="setting-desc">Switches language mid-call based on caller speech.</div>
+                </div>
+                <div class="toggle on"></div>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <div class="settings-title">Escalation rules</div>
+              <div class="settings-sub">What forces a handoff to a human, and who receives it.</div>
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">Acute symptom keywords</div>
+                  <div class="setting-desc">Chest pain, breathing difficulty, severe bleeding, loss of consciousness
+                  </div>
+                </div>
+                <div class="setting-val">→ Front desk + Alerts</div>
+              </div>
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">Rescue medication overuse</div>
+                  <div class="setting-desc">e.g. inhaler use beyond safe daily threshold</div>
+                </div>
+                <div class="setting-val">→ Same-day booking</div>
+              </div>
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">Caller requests a human directly</div>
+                  <div class="setting-desc">Any explicit request to speak with a person</div>
+                </div>
+                <div class="setting-val">→ Front desk</div>
+              </div>
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">Agent confidence below threshold</div>
+                  <div class="setting-desc">Unclear intent after 2 clarifying questions</div>
+                </div>
+                <div class="setting-val">→ Front desk</div>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <div class="settings-title">Call scripts</div>
+              <div class="settings-sub">Tone and boundaries the agent follows on every call.</div>
+              <div class="script-box">
+                <div class="script-name">Greeting & identity verification</div>
+                <div class="script-text">Confirms patient name, DOB, and reason for calling before proceeding. Verifies
+                  against existing MRN where possible.</div>
+              </div>
+              <div class="script-box">
+                <div class="script-name">Clinical boundary statement</div>
+                <div class="script-text">Agent will recommend specialists and time slots but will not diagnose,
+                  interpret test results, or promise treatment outcomes.</div>
+              </div>
+              <div class="script-box">
+                <div class="script-name">Consent & recording disclosure</div>
+                <div class="script-text">States the call is being recorded and summarized for the patient's medical
+                  record at the start of every call.</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    function showScreen(name) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById('screen-' + name).classList.add('active');
+      document.querySelectorAll('.proto-tab').forEach(t => t.classList.remove('active'));
+      document.querySelector('.proto-tab[data-screen="' + name + '"]').classList.add('active');
+      document.getElementById('rail-voice').classList.toggle('active', name !== 'settings');
+      document.getElementById('rail-settings').classList.toggle('active', name === 'settings');
+    }
+    function showTab(name) {
+      document.querySelectorAll('.tabpanel').forEach(t => t.classList.remove('active'));
+      document.getElementById('tab-' + name).classList.add('active');
+      document.querySelectorAll('.tabbtn').forEach(t => t.classList.remove('active'));
+      document.querySelector('.tabbtn[data-tab="' + name + '"]').classList.add('active');
+    }
+  </script>
+</body>
+
+</html>

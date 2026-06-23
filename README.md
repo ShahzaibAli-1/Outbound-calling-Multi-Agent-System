@@ -1,13 +1,13 @@
 # Medical Voice Intake Agent
 
-A Python voice agent for healthcare clinics that handles patient intake over the phone using OpenAI, Deepgram, and Twilio. The backend handles Twilio voice webhooks and media streams, Deepgram provides live speech-to-text and text-to-speech, and OpenAI generates spoken replies while extracting structured patient intake data from each call.
+A Python voice agent for healthcare clinics that handles patient intake over the phone using **ElevenLabs Conversational AI**, **Twilio**, and optional **OpenAI** for browser testing and intake extraction.
+
+Live phone calls are handled by a full ElevenLabs agent (speech recognition, reasoning, and voice in one pipeline). Twilio provides telephony and media streaming. OpenAI is optional and used only for the browser test bench and structured patient intake extraction from call transcripts.
 
 ## What is included
 
 - FastAPI backend for health checks, browser testing, outbound dialing, Twilio webhooks, and the media WebSocket.
-- Deepgram live transcription bridge for Twilio `mulaw/8000` audio.
-- Deepgram TTS playback back into the live Twilio call.
-- OpenAI-backed reply generation tuned for short spoken answers and patient intake collection.
+- ElevenLabs Conversational AI agent bridged to Twilio `mulaw/8000` media streams.
 - Structured patient intake extraction stored per call (name, DOB, symptoms, allergies, insurance, and more).
 - Built-in medical campaign scenarios including new patient intake, appointment intake, and symptom screening.
 - Static frontend dashboard served directly by the Python app.
@@ -23,6 +23,9 @@ app/
   models.py
   store.py
   services/
+    call_session.py
+    elevenlabs_agent.py
+    twilio_audio_interface.py
 frontend/
   index.html
   styles.css
@@ -35,8 +38,10 @@ README.md
 
 1. Create a virtual environment.
 2. Install dependencies.
-3. Make sure `.env` contains your OpenAI, Deepgram, Twilio, and public base URL values.
-4. Start the FastAPI server.
+3. Create an [ElevenLabs Conversational AI agent](https://elevenlabs.io/docs/eleven-agents/quickstart) for Medory Call Center / patient intake (see **ElevenLabs agent setup** below).
+4. Copy your agent ID into `.env` as `ELEVENLABS_AGENT_ID`.
+5. Make sure `.env` contains your ElevenLabs, Twilio, and public base URL values.
+6. Start the FastAPI server.
 
 ```powershell
 python -m venv .venv
@@ -50,37 +55,77 @@ Then open `http://localhost:3000`.
 
 On Windows, prefer running Uvicorn without `--reload`. The reloader can fail with socket errors like `WinError 10013` or `WinError 10048` even when the app itself starts correctly without reload.
 
-## Streamlit deployment
+## ElevenLabs agent setup (required for live calls)
 
-Use Streamlit for the operator dashboard only. The Twilio webhook, call control, and media-stream backend must still run on the FastAPI app because Streamlit Cloud does not expose arbitrary webhook and WebSocket routes for Twilio.
+The error `1008 policy violation: Override for field 'prompt' is not allowed` means the app tried to send a prompt override, but your agent security settings block it. Use **one** of the two setups below.
 
-1. Deploy the FastAPI backend somewhere that supports HTTP and WSS routes, such as Render, Railway, Fly.io, or your own VM.
-2. Set the backend environment variables there:
-  - `PUBLIC_BASE_URL=https://your-backend-domain.example.com`
-  - `OPENAI_API_KEY`
-  - `DEEPGRAM_API_KEY`
-  - `TWILIO_ACCOUNT_SID`
-  - `TWILIO_AUTH_TOKEN`
-  - `TWILIO_PHONE_NUMBER`
-3. Deploy this repository to Streamlit Cloud.
-4. In Streamlit Cloud secrets, set:
-  - `BACKEND_BASE_URL = "https://your-backend-domain.example.com"`
-5. Use `streamlit_app.py` as the app entrypoint.
-6. Point Twilio voice webhooks to the backend URL, not the Streamlit URL.
+### Recommended setup (dashboard config — works immediately)
 
-If your deployed Streamlit app shows a connection error to `http://127.0.0.1:3000`, that means `BACKEND_BASE_URL` was not configured. On Streamlit Cloud, `127.0.0.1` points to the Streamlit container itself, not your FastAPI backend.
+Configure the agent fully in ElevenLabs and keep overrides **off** in `.env`:
 
-Example Streamlit secret:
-
-```toml
-BACKEND_BASE_URL = "https://your-backend-domain.example.com"
+```env
+ELEVENLABS_OVERRIDE_PROMPT=false
+ELEVENLABS_OVERRIDE_FIRST_MESSAGE=false
 ```
 
-## Twilio configuration
+In the [ElevenLabs Agents dashboard](https://elevenlabs.io/app/conversational-ai):
+
+1. **Create or open your agent** and copy its ID into `.env` as `ELEVENLABS_AGENT_ID`.
+
+2. **Agent tab → System prompt**  
+   Paste the contents of `test_system_prompt.txt` from this repo (Medory medical intake instructions).
+
+3. **Agent tab → First message**  
+   Set the opening line, for example:  
+   `Hello, this is Medory Call Center. I can help with patient intake and appointment details. May I start with your full name?`
+
+4. **Agent tab → Voice**  
+   Pick a clear, professional voice for phone intake.
+
+5. **Agent tab → Language**  
+   Set to **English**.
+
+6. **Advanced / Audio**  
+   Default **PCM 16 kHz** in ElevenLabs is fine. This app converts automatically between Twilio **μ-law 8 kHz** and ElevenLabs **PCM 16 kHz**.
+
+7. **Security tab**  
+   Leave **Prompt override** and **First message override** disabled (default).  
+   The app will connect using your dashboard prompt only — no policy violation.
+
+8. **API key**  
+   Create an API key at [ElevenLabs API settings](https://elevenlabs.io/app/settings/api-keys) and set `ELEVENLABS_API_KEY` in `.env`.
+
+### Advanced setup (per-call prompts from this app)
+
+Only use this if you need campaign scenarios or custom prompts from the dashboard UI on each call:
+
+1. In ElevenLabs → your agent → **Security**, enable:
+   - **Prompt override**
+   - **First message override** (optional)
+
+2. In `.env`:
+   ```env
+   ELEVENLABS_OVERRIDE_PROMPT=true
+   ELEVENLABS_OVERRIDE_FIRST_MESSAGE=true
+   ```
+
+3. Restart the FastAPI server.
+
+If either override is enabled in `.env` but not allowed in ElevenLabs Security, the call will fail with error `1008`.
+
+## ElevenLabs + Twilio configuration
+
+### Option A: Custom media-stream bridge (current app default)
 
 - Point your Twilio incoming voice webhook to `/api/twilio/voice` on your public URL.
-- If you are testing locally, expose the app with a tunnel such as `ngrok http 3000` and copy that HTTPS URL into `PUBLIC_BASE_URL`.
-- Outbound calls use the same webhook automatically through the API.
+- The app bridges Twilio audio to your ElevenLabs agent over WebSocket.
+- Outbound calls are started through this app's `/api/calls/outbound` endpoint.
+
+### Option B: ElevenLabs native Twilio integration (optional)
+
+- Import your Twilio number in the [ElevenLabs dashboard](https://elevenlabs.io/docs/eleven-agents/phone-numbers/twilio-integration/native-integration).
+- Set `ELEVENLABS_AGENT_PHONE_NUMBER_ID` in `.env`.
+- Outbound calls can then be placed directly through ElevenLabs while inbound can be routed natively.
 
 ## Environment variables
 
@@ -88,11 +133,11 @@ Copy from `.env.example` if you want a clean template. The application reads the
 
 - `PORT`
 - `PUBLIC_BASE_URL`
-- `OPENAI_API_KEY`
+- `ELEVENLABS_API_KEY` (required for live calls)
+- `ELEVENLABS_AGENT_ID` (required for live calls)
+- `ELEVENLABS_AGENT_PHONE_NUMBER_ID` (optional, for native ElevenLabs outbound)
+- `OPENAI_API_KEY` (optional, for browser tests and patient intake extraction)
 - `OPENAI_MODEL`
-- `DEEPGRAM_API_KEY`
-- `DEEPGRAM_STT_MODEL`
-- `DEEPGRAM_TTS_MODEL`
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_AUTH_TOKEN`
 - `TWILIO_PHONE_NUMBER`
@@ -105,7 +150,7 @@ Copy from `.env.example` if you want a clean template. The application reads the
 - `GET /` serves the dashboard.
 - `GET /api/health` returns provider readiness and public endpoints.
 - `GET /api/campaign-scenarios` returns the built-in medical intake and clinic campaign prompt catalog.
-- `POST /api/chat/test` runs a browser-side prompt test through OpenAI.
+- `POST /api/chat/test` runs a browser-side prompt test through OpenAI (optional).
 - `POST /api/calls/outbound` starts an outbound Twilio call.
 - `GET /api/calls` returns recent call activity with attached patient intake records when available.
 - `GET /api/patient-intakes` returns structured patient intake records captured from calls.
@@ -118,8 +163,7 @@ Copy from `.env.example` if you want a clean template. The application reads the
 
 - Keep real secrets in `.env` only. Do not hardcode provider keys into Python or frontend files.
 - The current implementation stores call logs and patient intake records in memory. Restarting the server clears the activity feed.
-- Patient intake is extracted automatically from call transcripts after each caller turn and again when the call ends.
+- Patient intake is extracted automatically from ElevenLabs call transcripts when `OPENAI_API_KEY` is configured.
 - Twilio must be able to reach your app over a public HTTPS URL.
 - For outbound calls and browser tests, a custom prompt overrides any selected campaign scenario. If both are blank, the app falls back to `test_system_prompt.txt`.
 - On Twilio trial accounts, outbound calls only work to verified destination numbers.
-- Streamlit Cloud hosts the operator dashboard, but the Twilio webhook and media-stream routes must stay on the FastAPI backend.

@@ -8,7 +8,7 @@ from openai import AsyncOpenAI
 from app.config import Settings
 
 
-MAX_HISTORY_MESSAGES = 4
+MAX_HISTORY_MESSAGES = 12
 MAX_REPLY_SENTENCES = 2
 MAX_REPLY_WORDS = 28
 

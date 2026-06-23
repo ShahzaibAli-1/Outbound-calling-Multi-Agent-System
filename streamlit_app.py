@@ -158,8 +158,8 @@ except Exception as exc:
 
 status_columns = st.columns(4)
 status_columns[0].metric("Agent", str(health.get("agent") or "Unknown"))
-status_columns[1].metric("OpenAI", "Ready" if health["providers"]["openai"] else "Missing")
-status_columns[2].metric("Deepgram", "Ready" if health["providers"]["deepgram"] else "Missing")
+status_columns[1].metric("ElevenLabs", "Ready" if health["providers"]["elevenlabs"] else "Missing")
+status_columns[2].metric("OpenAI", "Ready" if health["providers"]["openai"] else "Missing")
 status_columns[3].metric("Twilio", "Ready" if health["providers"]["twilio"] else "Missing")
 
 if health.get("warnings"):

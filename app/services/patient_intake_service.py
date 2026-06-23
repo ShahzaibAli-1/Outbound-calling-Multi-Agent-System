@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -13,8 +14,140 @@ EXTRACTION_SYSTEM_PROMPT = (
     "You extract structured patient intake data from phone call transcripts. "
     "Return only valid JSON matching the requested schema. "
     "Use null for fields not yet mentioned. Do not invent information. "
-    "If the caller corrected a field, use the latest value."
+    "If the caller corrected a field, use the latest value. "
+    "If full_name is already on file for this patient, keep that exact value and do not change it from transcript guesses."
 )
+
+INTAKE_FIELD_ORDER: list[tuple[str, str]] = [
+    ("full_name", "full legal name"),
+    ("date_of_birth", "date of birth"),
+    ("phone_number", "callback phone number"),
+    ("reason_for_visit", "reason for visit or chief complaint"),
+    ("symptoms", "current symptoms and how long they have been present"),
+    ("allergies", "known allergies"),
+    ("current_medications", "current medications"),
+    ("insurance_provider", "insurance provider"),
+    ("insurance_member_id", "insurance member ID"),
+    ("preferred_appointment", "preferred appointment date or time"),
+    ("email", "email address"),
+    ("emergency_contact_name", "emergency contact name"),
+    ("emergency_contact_phone", "emergency contact phone"),
+]
+
+
+_NAME_CORRECTION_PATTERN = re.compile(
+    r"\b(?:actually|correction|correct spelling|i said|it's|it is|not)\b",
+    re.IGNORECASE,
+)
+_SPACED_LETTERS_PATTERN = re.compile(
+    r"\b(?:[A-Za-z]\s+){2,}[A-Za-z]\b",
+)
+_HYPHENATED_SPELLING_PATTERN = re.compile(
+    r"\b(?:[A-Za-z]-){2,}[A-Za-z]\b",
+)
+
+
+def _title_case_name(value: str) -> str:
+    return " ".join(part.capitalize() for part in value.split())
+
+
+def _name_from_spelling(text: str) -> str | None:
+    hyphenated = _HYPHENATED_SPELLING_PATTERN.findall(text)
+    if hyphenated:
+        parts = [_title_case_name(item.replace("-", "")) for item in hyphenated]
+        if parts:
+            return " ".join(parts)
+
+    spaced = _SPACED_LETTERS_PATTERN.findall(text)
+    if spaced:
+        words: list[str] = []
+        for chunk in spaced:
+            letters = re.findall(r"[A-Za-z]", chunk)
+            if len(letters) >= 3:
+                words.append(_title_case_name("".join(letters)))
+        if words:
+            return " ".join(words)
+    return None
+
+
+def _extract_name_hint(history: list[dict[str, str]], latest_user_text: str | None = None) -> str | None:
+    user_lines = [
+        message.get("content", "").strip()
+        for message in history
+        if message.get("role") == "user" and message.get("content", "").strip()
+    ]
+    if latest_user_text and latest_user_text.strip():
+        user_lines.append(latest_user_text.strip())
+
+    for line in reversed(user_lines):
+        spelled = _name_from_spelling(line)
+        if spelled:
+            return spelled
+
+    for line in reversed(user_lines):
+        correction = re.search(
+            r"(?i)(?:actually(?:\s+it(?:'s| is))?|correction|correct spelling|i said|it is|it's)\s+"
+            r"([A-Za-z][A-Za-z' -]{1,60}?)(?:\s+not\b|\s*$)",
+            line,
+        )
+        if correction:
+            candidate = correction.group(1).strip(" .,-")
+            if candidate and len(candidate.split()) <= 6:
+                return _title_case_name(candidate)
+
+    for line in reversed(user_lines):
+        if _NAME_CORRECTION_PATTERN.search(line):
+            cleaned = re.sub(
+                r"(?i)\b(?:actually|correction|correct spelling|i said|it's|it is|not|my name is)\b",
+                " ",
+                line,
+            )
+            cleaned = re.sub(r"\s+", " ", cleaned).strip(" .,-")
+            if cleaned and len(cleaned.split()) <= 6:
+                return _title_case_name(cleaned)
+
+    for line in reversed(user_lines):
+        match = re.search(
+            r"(?i)(?:my name is|this is|i am|i'm)\s+([A-Za-z][A-Za-z' -]{1,60})",
+            line,
+        )
+        if match:
+            candidate = match.group(1).strip(" .,-")
+            if candidate and len(candidate.split()) <= 6:
+                return _title_case_name(candidate)
+    return None
+
+
+def build_intake_progress_context(intake: PatientIntakeRecord | None) -> str:
+    collected_lines: list[str] = []
+    next_label: str | None = None
+
+    for field_name, label in INTAKE_FIELD_ORDER:
+        value = getattr(intake, field_name, None) if intake else None
+        if value:
+            collected_lines.append(f"- {label}: {value}")
+        elif next_label is None:
+            next_label = label
+
+    lines = [
+        "## Current Intake Progress",
+        "Already collected (do NOT ask for these again):",
+    ]
+    lines.extend(collected_lines or ["- None yet"])
+    lines.append("")
+    if next_label:
+        lines.extend(
+            [
+                f"Ask about ONLY the next missing item: {next_label}.",
+                "Do not repeat earlier questions. Acknowledge the caller's last answer briefly, then move on.",
+            ]
+        )
+    else:
+        lines.append(
+            "Standard intake fields are complete. Briefly summarize what you captured and ask if anything needs correction."
+        )
+
+    return "\n".join(lines)
 
 
 class PatientIntakeExtractor:
@@ -137,4 +270,9 @@ class PatientIntakeExtractor:
             extracted = {}
 
         merged = self._merge_intake(current, extracted)
+        name_hint = _extract_name_hint(history, latest_user_text)
+        if name_hint:
+            merged = merged.model_copy(update={"full_name": name_hint})
+        if self._settings.hardcoded_patient_name:
+            merged = merged.model_copy(update={"full_name": self._settings.hardcoded_patient_name})
         return merged.model_copy(update={"call_sid": call_sid})

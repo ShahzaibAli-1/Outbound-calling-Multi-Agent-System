@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 import asyncio
-import base64
-import json
-from uuid import uuid4
+import logging
+from typing import Any
 
 from fastapi import WebSocket
+from elevenlabs.conversational_ai.conversation import Conversation
 
-from app.config import Settings
-from app.services.deepgram_service import DeepgramLiveTranscriber, DeepgramSpeechSynthesizer
-from app.services.openai_service import OpenAIResponder
+from app.config import Settings, normalize_patient_transcript
+from app.services.elevenlabs_agent import build_conversation_config, build_elevenlabs_client
 from app.services.patient_intake_service import PatientIntakeExtractor
+from app.services.twilio_audio_interface import TwilioAudioInterface
 from app.store import CallStore
+
+
+logger = logging.getLogger(__name__)
 
 
 class CallSession:
@@ -20,8 +23,7 @@ class CallSession:
         *,
         settings: Settings,
         call_store: CallStore,
-        responder: OpenAIResponder,
-        intake_extractor: PatientIntakeExtractor,
+        intake_extractor: PatientIntakeExtractor | None,
         call_sid: str,
         from_number: str | None,
         to_number: str | None,
@@ -30,13 +32,11 @@ class CallSession:
     ) -> None:
         self._settings = settings
         self._call_store = call_store
-        self._responder = responder
         self._intake_extractor = intake_extractor
         self._websocket: WebSocket | None = None
-        self._stream_sid: str | None = None
+        self._loop = asyncio.get_event_loop()
         self._system_prompt = system_prompt or settings.agent_system_prompt
         self._history: list[dict[str, str]] = []
-        self._reply_lock = False
         self._closed = False
 
         self.call_sid = call_sid
@@ -47,91 +47,108 @@ class CallSession:
             direction=direction,
         )
 
-        self._transcriber = DeepgramLiveTranscriber(settings, self._handle_final_transcript)
-        self._synthesizer = DeepgramSpeechSynthesizer(settings)
+        self._audio_interface: TwilioAudioInterface | None = None
+        self._conversation: Conversation | None = None
 
     async def attach(self, websocket: WebSocket) -> None:
         self._websocket = websocket
 
-    async def start(self, stream_sid: str) -> None:
-        self._stream_sid = stream_sid
+    async def handle_twilio_message(self, payload: dict[str, Any]) -> None:
+        if self._closed or self._websocket is None:
+            return
+
+        event_type = payload.get("event")
+        if event_type == "start":
+            await self._start_conversation(payload)
+            return
+
+        if self._audio_interface is not None:
+            await self._audio_interface.handle_twilio_message(payload)
+
+        if event_type == "stop":
+            await self.close(status="completed")
+
+    async def _start_conversation(self, payload: dict[str, Any]) -> None:
+        if self._conversation is not None or self._websocket is None:
+            return
+
+        if not self._settings.elevenlabs_agent_id:
+            self._call_store.add_event(
+                self.call_sid,
+                "error",
+                "ELEVENLABS_AGENT_ID is not configured.",
+            )
+            return
+
         self._call_store.update_status(self.call_sid, "connected")
-        self._call_store.add_event(self.call_sid, "status", "Media stream connected.")
-        await self._transcriber.start()
-        # Give Twilio a brief moment to finish bridging the answered call audio path
-        # before the first synthesized greeting is sent.
-        await asyncio.sleep(0.75)
-        await self._send_agent_message(self._settings.agent_greeting, record_history=False)
+        self._call_store.add_event(self.call_sid, "status", "ElevenLabs agent session starting.")
 
-    async def ingest_audio(self, payload: str) -> None:
-        if self._closed:
-            return
-        await self._transcriber.send_audio(base64.b64decode(payload))
+        self._audio_interface = TwilioAudioInterface(self._websocket, self._loop)
+        start_payload = payload.get("start", {})
+        stream_sid = start_payload.get("streamSid")
+        if stream_sid:
+            self._audio_interface.stream_sid = stream_sid
 
-    async def _handle_final_transcript(self, transcript: str) -> None:
-        if self._closed or self._reply_lock:
-            return
-
-        self._reply_lock = True
-        try:
-            self._call_store.add_event(self.call_sid, "user", transcript)
-
-            answer = await self._responder.generate_reply(
-                history=self._history,
-                user_text=transcript,
-                system_prompt=self._system_prompt,
-            )
-
-            self._history.append({"role": "user", "content": transcript})
-            self._history.append({"role": "assistant", "content": answer})
-            await self._send_agent_message(answer, record_history=False)
-            await self._capture_patient_intake(transcript)
-        except Exception as exc:  # pragma: no cover - defensive logging path
-            self._call_store.add_event(self.call_sid, "error", f"Agent error: {exc}")
-            await self._send_agent_message(
-                "I hit a processing issue. Please repeat that in a different way.",
-                record_history=False,
-            )
-        finally:
-            self._reply_lock = False
-
-    async def _send_agent_message(self, text: str, *, record_history: bool) -> None:
-        if record_history:
-            self._history.append({"role": "assistant", "content": text})
-
-        self._call_store.add_event(self.call_sid, "assistant", text)
-        audio_bytes = await self._synthesizer.synthesize(text)
-        await self._send_audio(audio_bytes)
-
-    async def _send_audio(self, audio_bytes: bytes) -> None:
-        if self._websocket is None or self._stream_sid is None:
-            return
-
-        chunk_size = 320
-        for index in range(0, len(audio_bytes), chunk_size):
-            chunk = audio_bytes[index : index + chunk_size]
-            payload = base64.b64encode(chunk).decode("ascii")
-            await self._websocket.send_text(
-                json.dumps(
-                    {
-                        "event": "media",
-                        "streamSid": self._stream_sid,
-                        "media": {"payload": payload},
-                    }
-                )
-            )
-
-        await self._websocket.send_text(
-            json.dumps(
-                {
-                    "event": "mark",
-                    "streamSid": self._stream_sid,
-                    "mark": {"name": f"reply-{uuid4().hex[:8]}"},
-                }
-            )
+        client = build_elevenlabs_client(self._settings)
+        config = build_conversation_config(
+            self._settings,
+            system_prompt=self._system_prompt,
+            first_message=self._settings.agent_greeting,
+            client=client,
+        )
+        override_mode = "with overrides" if config else "using ElevenLabs dashboard config only"
+        self._call_store.add_event(
+            self.call_sid,
+            "system",
+            f"ElevenLabs session starting {override_mode}.",
         )
 
+        self._conversation = Conversation(
+            client=client,
+            agent_id=self._settings.elevenlabs_agent_id,
+            requires_auth=True,
+            audio_interface=self._audio_interface,
+            config=config,
+            callback_agent_response=self._on_agent_response,
+            callback_user_transcript=self._on_user_transcript,
+        )
+        self._conversation.start_session()
+        await self._audio_interface.handle_twilio_message(payload)
+        self._call_store.add_event(
+            self.call_sid,
+            "system",
+            "ElevenLabs session active. Audio bridge: Twilio mulaw 8kHz <-> ElevenLabs PCM 16kHz.",
+        )
+
+    def _on_agent_response(self, text: str) -> None:
+        asyncio.run_coroutine_threadsafe(self._record_agent_response(text), self._loop)
+
+    def _on_user_transcript(self, text: str) -> None:
+        asyncio.run_coroutine_threadsafe(self._record_user_transcript(text), self._loop)
+
+    async def _record_agent_response(self, text: str) -> None:
+        if self._closed or not text.strip():
+            return
+
+        self._history.append({"role": "assistant", "content": text.strip()})
+        self._call_store.add_event(self.call_sid, "assistant", text.strip())
+
+    async def _record_user_transcript(self, text: str) -> None:
+        if self._closed or not text.strip():
+            return
+
+        display_text = normalize_patient_transcript(
+            text.strip(),
+            self._settings.hardcoded_patient_name,
+        )
+        self._history.append({"role": "user", "content": display_text})
+        self._call_store.add_event(self.call_sid, "user", display_text)
+        await self._capture_patient_intake(display_text)
+
     async def _capture_patient_intake(self, latest_user_text: str) -> None:
+        if self._intake_extractor is None:
+            return
+
         try:
             current = self._call_store.get_patient_intake(self.call_sid)
             intake = await self._intake_extractor.extract_intake(
@@ -162,7 +179,15 @@ class CallSession:
             await self._capture_patient_intake(latest_user_text="")
 
         self._closed = True
+        if self._conversation is not None:
+            try:
+                self._conversation.end_session()
+                self._conversation.wait_for_session_end()
+            except Exception as exc:  # pragma: no cover - defensive logging path
+                logger.warning("Error ending ElevenLabs session: %s", exc)
+            finally:
+                self._conversation = None
+
+        self._audio_interface = None
         self._call_store.update_status(self.call_sid, status)
         self._call_store.add_event(self.call_sid, "status", f"Call closed with status: {status}")
-        await self._transcriber.close()
-        await self._synthesizer.close()

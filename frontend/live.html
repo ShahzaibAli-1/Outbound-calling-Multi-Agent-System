@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medory — Live Call</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,600;1,500&family=Figtree:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css?v=20250629">
+    <style>
+        .live-page { min-height: 100vh; display: flex; flex-direction: column; background: var(--canvas); }
+        .live-page .topbar.rec { position: sticky; top: 0; z-index: 5; }
+        .live-page .content { flex: 1; min-height: 0; }
+        .live-page .center-live { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+        .live-page .transcript-area { flex: 1; overflow-y: auto; }
+        .live-status-bar {
+            font-size: 12px;
+            color: var(--text-dim);
+            padding: 10px 18px;
+            border-bottom: 1px solid var(--line-soft);
+            background: var(--white);
+        }
+        .live-back {
+            color: var(--gold-deep);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 12px;
+        }
+        .intake-side {
+            width: 300px;
+            border-left: 1px solid var(--line);
+            background: var(--canvas-2);
+            padding: 20px 16px;
+            overflow-y: auto;
+        }
+        .intake-side h3 {
+            font-family: 'DM Mono', monospace;
+            font-size: 9.5px;
+            letter-spacing: .07em;
+            text-transform: uppercase;
+            color: var(--text-faint);
+            margin-bottom: 12px;
+        }
+        .intake-row { margin-bottom: 10px; font-size: 12.5px; }
+        .intake-row strong {
+            display: block;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            color: var(--text-faint);
+            margin-bottom: 2px;
+        }
+        .audio-hint {
+            font-size: 11px;
+            color: var(--green);
+            margin-left: 12px;
+        }
+        .error-banner {
+            background: var(--red-bg);
+            border-bottom: 1px solid #E8C4C0;
+            color: var(--red);
+            padding: 12px 18px;
+            font-size: 13px;
+            line-height: 1.45;
+        }
+        .error-banner.hidden { display: none; }
+        .ctrl-btn.danger {
+            background: var(--red-bg);
+            color: var(--red);
+            border: 1px solid #E8C4C0;
+        }
+    </style>
+</head>
+<body class="live-page">
+    <div class="topbar rec">
+        <div class="rec-tag" id="liveTag"><span class="rec-dot"></span>Connecting</div>
+        <div class="topbar-divider"></div>
+        <div class="topbar-caller" id="callerLine">Preparing call…</div>
+        <div class="topbar-right">
+            <div class="timer" id="callTimer">00:00</div>
+            <a class="live-back" href="/">Dashboard</a>
+        </div>
+    </div>
+
+    <div class="error-banner hidden" id="errorBanner"></div>
+
+    <div class="live-status-bar">
+        <span id="statusLine">Initializing…</span>
+        <span class="audio-hint hidden" id="audioHint">Agent audio enabled</span>
+    </div>
+
+    <div class="content">
+        <div class="center-live">
+            <div class="transcript-area" id="transcriptArea">
+                <div class="empty-state" style="padding:24px;color:var(--text-faint);font-style:italic;">
+                    Transcript will appear here as the agent and patient speak.
+                </div>
+            </div>
+            <div class="call-controls">
+                <button class="ctrl-btn" id="enableAudioBtn" type="button">Enable audio</button>
+                <div class="ctrl-spacer"></div>
+                <div class="ctrl-meta" id="metaLine">Encrypted · audit logged</div>
+                <button class="ctrl-btn danger" id="deletePatientBtn" type="button">Delete patient</button>
+                <button class="ctrl-btn dark" id="endCallBtn" type="button">End call</button>
+            </div>
+        </div>
+
+        <aside class="intake-side" id="intakeSide">
+            <h3>Patient intake</h3>
+            <div id="intakeFields">
+                <div class="empty-state" style="font-size:12px;color:var(--text-faint);font-style:italic;">
+                    Intake fields will populate during the call.
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <script type="module" src="/static/live.js?v=20250702"></script>
+</body>
+</html>

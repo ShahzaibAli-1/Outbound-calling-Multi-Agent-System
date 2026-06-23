@@ -3,177 +3,240 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Medory Call Center</title>
+    <title>Medory — Voice Agent</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,600;1,500&family=Figtree:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css?v=20250629">
 </head>
 <body>
-    <div class="page-shell">
-        <div class="ambient ambient-left"></div>
-        <div class="ambient ambient-right"></div>
+    <div class="app">
+        <div class="rail">
+            <img src="https://medory.ai/wp-content/uploads/2026/06/Blue-White-Favicon.png" alt="Medory" width="24">
+            <div class="rail-icon active" title="Voice Agent">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M3 11a1 1 0 0 1 1-1h2l3-4v12l-3-4H4a1 1 0 0 1-1-1z"/>
+                    <path d="M16 8a4 4 0 0 1 0 8M19 5a8 8 0 0 1 0 14"/>
+                </svg>
+                <div class="dot"></div>
+            </div>
+            <div class="rail-spacer"></div>
+            <div class="rail-gear" id="openSettingsBtn" title="Agent settings">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.5 1z"/>
+                </svg>
+            </div>
+        </div>
 
-        <main class="layout">
-            <section class="panel hero-panel">
-                <p class="eyebrow">Medory Call Center | OpenAI | Deepgram | Twilio</p>
-                <div class="hero-copy">
-                    <div>
-                        <h1>Medory Call Center patient intake, on every call.</h1>
-                        <p>
-                            This console drives an AI phone agent that uses Deepgram for live speech,
-                            OpenAI for reasoning, and Twilio for real calls. Use the browser test bench
-                            before dialing out, then monitor transcripts and call state in real time.
-                        </p>
+        <div class="main">
+            <div class="screen active" id="screen-home">
+                <div class="topbar">
+                    <div class="topbar-brand">
+                        <img src="https://medory.ai/wp-content/uploads/2026/05/Medory-Blue-and-White-Logo.png" alt="Medory" width="80">
                     </div>
-                    <div class="hero-stats">
-                        <div class="metric-card">
-                            <span class="metric-label">Twilio Number</span>
-                            <strong id="phoneNumber">Loading...</strong>
+                    <div class="badge-pill">Voice Agent</div>
+                    <div class="topbar-search">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="7"/>
+                            <path d="M21 21l-4.3-4.3"/>
+                        </svg>
+                        <input id="globalSearch" type="search" placeholder="Search calls by patient, phone, or call ID">
+                    </div>
+                    <div class="topbar-right">
+                        <div class="topbar-alert" id="liveCallsPill">0 live</div>
+                        <div class="topbar-style">CHANNEL <b>Voice · AR / EN</b></div>
+                        <div class="avatar">S</div>
+                        <div class="topbar-doc" id="staffName">Shahzaib</div>
+                    </div>
+                </div>
+
+                <div class="content">
+                    <div class="queue-panel">
+                        <div class="queue-head">
+                            <div class="queue-title">Today's calls</div>
+                            <div class="queue-date" id="queueDate"></div>
                         </div>
-                        <div class="metric-card">
-                            <span class="metric-label">Voice Webhook</span>
-                            <strong id="voiceWebhookShort">Loading...</strong>
+                        <div class="queue-sub" id="queueSummary"><b>0 total</b> · loading…</div>
+                        <div class="queue-tabs">
+                            <div class="qtab active" data-filter="all">All</div>
+                            <div class="qtab" data-filter="live">Live</div>
+                            <div class="qtab" data-filter="demo">Demo</div>
+                            <div class="qtab" data-filter="phone">Phone</div>
+                        </div>
+                        <div id="sidebarCalls">
+                            <div class="empty-state">No calls yet today.</div>
+                        </div>
+                    </div>
+
+                    <div class="pane">
+                        <div class="pane-top">
+                            <div>
+                                <div class="greet" id="greetingTitle">Good morning, <b>Shahzaib.</b></div>
+                                <div class="subline" id="subline">Medory handles patient intake, follow-up, and front-desk calls.</div>
+                            </div>
+                            <div class="pane-actions">
+                                <button class="btn" id="refreshButton" type="button">Refresh</button>
+                                <button class="btn" id="openSettingsBtn2" type="button">Configure agent</button>
+                                <button class="btn" id="openDemoBtn" type="button">Demo call</button>
+                                <button class="btn primary" id="openPhoneBtn" type="button">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M3 11a1 1 0 0 1 1-1h2l3-4v12l-3-4H4a1 1 0 0 1-1-1z"/>
+                                        <path d="M16 8a4 4 0 0 1 0 8"/>
+                                    </svg>
+                                    Place a call
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="stats">
+                            <div class="stat">
+                                <div class="stat-num" id="metricCalls">0</div>
+                                <div class="stat-label">Calls today</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-num green" id="metricDemo">0</div>
+                                <div class="stat-label">Demo calls</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-num gold" id="metricComplete">0</div>
+                                <div class="stat-label">Intakes complete</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-num" id="metricProgress">0</div>
+                                <div class="stat-label">In progress</div>
+                            </div>
+                        </div>
+
+                        <div class="livecard" id="livePanel">
+                            <div class="live-top">
+                                <div class="live-tag" id="liveStatusPill"><span class="pulse"></span>Idle</div>
+                                <div class="live-timer" id="liveTimer">00:00</div>
+                            </div>
+                            <div class="live-main">
+                                <div class="live-person" style="flex:1;min-width:0;">
+                                    <div class="live-name-row">
+                                        <div class="live-name" id="liveCallTitle">No active call</div>
+                                        <div class="live-dir" id="liveCallType">—</div>
+                                    </div>
+                                    <div class="live-reason" id="liveCallReason">Start a demo call or place an outbound call to begin.</div>
+                                    <div class="live-snippet" id="liveTranscript">
+                                        <div class="empty-state">Agent and patient transcript will appear here during a call.</div>
+                                    </div>
+                                    <div class="intake-panel hidden" id="liveIntake">
+                                        <h3>Captured patient intake</h3>
+                                        <div class="intake-fields" id="liveIntakeFields"></div>
+                                    </div>
+                                </div>
+                        <div class="live-actions">
+                            <button class="btn-small" id="openLiveBtn" type="button">View transcript</button>
+                            <button class="btn-small danger" id="deleteCallBtn" type="button">Delete patient</button>
+                            <button class="btn-small" id="openDemoBtn2" type="button">Demo call</button>
+                            <button class="btn-small" id="openPhoneBtn2" type="button">Place call</button>
+                        </div>
+                            </div>
+                        </div>
+
+                        <div class="grid2">
+                            <div class="card">
+                                <div class="card-head">
+                                    <div class="card-title">Recent outcomes</div>
+                                </div>
+                                <div id="outcomesList">
+                                    <div class="empty-state">Completed calls will appear here.</div>
+                                </div>
+                            </div>
+                            <div class="card">
+                                <div class="card-head">
+                                    <div class="card-title">Intake scenarios</div>
+                                </div>
+                                <div id="scenariosList">
+                                    <div class="empty-state">Loading scenarios…</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="footer-strip">
+                            <span>All calls transcribed and patient intake saved to <b>medory.db</b></span>
+                            <span>Medory Voice Agent</span>
                         </div>
                     </div>
                 </div>
-            </section>
-
-            <section class="panel call-panel">
-                <div class="section-heading">
-                    <div>
-                        <p class="section-kicker">Call Controls</p>
-                        <h2>Launch an outbound AI call</h2>
-                    </div>
-                    <button id="refreshButton" class="ghost-button" type="button">Refresh data</button>
-                </div>
-
-                <form id="callForm" class="form-grid">
-                    <label class="field field-wide">
-                        <span>Destination phone number</span>
-                        <input id="toNumber" name="toNumber" type="tel" placeholder="+1 202 555 0118" required>
-                    </label>
-
-                    <label class="field field-wide">
-                        <span>Campaign scenario</span>
-                        <select id="callScenario" name="callScenario">
-                            <option value="">Loading scenarios...</option>
-                        </select>
-                    </label>
-
-                    <label class="field field-wide">
-                        <span>Custom call prompt</span>
-                        <textarea id="callPrompt" name="callPrompt" rows="5" placeholder="Optional override for the phone agent persona and behavior."></textarea>
-                    </label>
-
-                    <div class="response-box field-wide scenario-box">
-                        <div class="response-label">Selected prompt source</div>
-                        <div id="callScenarioPreview" class="response-body">Using the default medical intake prompt unless you choose a scenario or write a custom prompt.</div>
-                    </div>
-
-                    <div class="actions field-wide">
-                        <button class="primary-button" type="submit">Place call</button>
-                        <p id="callFeedback" class="feedback"></p>
-                    </div>
-                </form>
-            </section>
-
-            <section class="panel chat-panel">
-                <div class="section-heading compact">
-                    <div>
-                        <p class="section-kicker">Browser Test Bench</p>
-                        <h2>Validate the prompt before dialing</h2>
-                    </div>
-                </div>
-
-                <form id="chatForm" class="form-grid">
-                    <label class="field field-wide">
-                        <span>Test message</span>
-                        <textarea id="chatMessage" name="chatMessage" rows="4" placeholder="Ask the agent something like a caller would."></textarea>
-                    </label>
-
-                    <label class="field field-wide">
-                        <span>Campaign scenario</span>
-                        <select id="chatScenario" name="chatScenario">
-                            <option value="">Loading scenarios...</option>
-                        </select>
-                    </label>
-
-                    <label class="field field-wide">
-                        <span>Custom prompt override</span>
-                        <textarea id="chatPrompt" name="chatPrompt" rows="4" placeholder="Optional prompt used only for this browser test."></textarea>
-                    </label>
-
-                    <div class="response-box field-wide scenario-box">
-                        <div class="response-label">Scenario prompt preview</div>
-                        <div id="chatScenarioPreview" class="response-body">Choose a patient intake scenario to preview its prompt, or leave it blank to use the default medical intake prompt.</div>
-                    </div>
-
-                    <div class="actions field-wide">
-                        <button class="secondary-button" type="submit">Run browser test</button>
-                        <p id="chatFeedback" class="feedback"></p>
-                    </div>
-                </form>
-
-                <div class="response-box">
-                    <div class="response-label">Agent reply</div>
-                    <div id="chatAnswer" class="response-body">No browser test has been run yet.</div>
-                </div>
-            </section>
-
-            <aside class="panel status-panel">
-                <div class="section-heading compact">
-                    <div>
-                        <p class="section-kicker">System Status</p>
-                        <h2>Provider readiness</h2>
-                    </div>
-                </div>
-
-                <div class="status-grid">
-                    <div class="status-tile">
-                        <span>OpenAI</span>
-                        <strong id="providerOpenAI">Checking...</strong>
-                    </div>
-                    <div class="status-tile">
-                        <span>Deepgram</span>
-                        <strong id="providerDeepgram">Checking...</strong>
-                    </div>
-                    <div class="status-tile">
-                        <span>Twilio</span>
-                        <strong id="providerTwilio">Checking...</strong>
-                    </div>
-                </div>
-
-                <dl class="endpoint-list">
-                    <div>
-                        <dt>Public base URL</dt>
-                        <dd id="publicBaseUrl">Loading...</dd>
-                    </div>
-                    <div>
-                        <dt>Inbound webhook</dt>
-                        <dd id="voiceWebhook">Loading...</dd>
-                    </div>
-                    <div>
-                        <dt>Media stream</dt>
-                        <dd id="mediaStream">Loading...</dd>
-                    </div>
-                </dl>
-            </aside>
-
-            <section class="panel activity-panel">
-                <div class="section-heading compact">
-                    <div>
-                        <p class="section-kicker">Call Activity</p>
-                        <h2>Recent calls and transcripts</h2>
-                    </div>
-                </div>
-                <div id="callsList" class="calls-list">
-                    <div class="empty-state">No calls have been placed yet.</div>
-                </div>
-            </section>
-        </main>
+            </div>
+        </div>
     </div>
 
-    <script type="module" src="/static/app.js"></script>
+    <dialog id="demoDialog" class="medory-modal">
+        <form method="dialog" class="modal-card">
+            <div class="modal-head">
+                <div>
+                    <div class="modal-eyebrow">Browser demo call</div>
+                    <h2>Speak with the intake agent</h2>
+                </div>
+                <button class="icon-close" type="button" data-close-demo>&times;</button>
+            </div>
+            <label class="field">
+                <span>Intake scenario</span>
+                <select id="demoScenario"></select>
+            </label>
+            <div class="modal-actions">
+                <button class="btn primary" id="startDemoBtn" type="button">Start demo call</button>
+                <button class="btn danger hidden" id="endDemoBtn" type="button">End demo call</button>
+                <span class="modal-feedback" id="demoStatus">Ready — microphone required</span>
+            </div>
+            <div id="demoTranscript" class="modal-transcript"></div>
+        </form>
+    </dialog>
+
+    <dialog id="phoneDialog" class="medory-modal">
+        <form class="modal-card" id="callForm">
+            <div class="modal-head">
+                <div>
+                    <div class="modal-eyebrow">Outbound phone call</div>
+                    <h2>Place a live Twilio call</h2>
+                </div>
+                <button class="icon-close" type="button" data-close-phone>&times;</button>
+            </div>
+            <label class="field">
+                <span>Destination phone number (E.164, e.g. +12025550108)</span>
+                <input id="toNumber" type="tel" placeholder="+1 202 555 0108" required>
+            </label>
+            <label class="field">
+                <span>Intake scenario</span>
+                <select id="callScenario"></select>
+            </label>
+            <label class="field">
+                <span>Custom prompt override (optional)</span>
+                <textarea id="callPrompt" rows="4" placeholder="Leave blank to use the selected scenario prompt"></textarea>
+            </label>
+            <div class="modal-actions">
+                <button class="btn primary" type="submit">Place call</button>
+                <p class="modal-feedback" id="callFeedback"></p>
+            </div>
+        </form>
+    </dialog>
+
+    <dialog id="settingsDialog" class="medory-modal">
+        <div class="modal-card">
+            <div class="modal-head">
+                <div>
+                    <div class="modal-eyebrow">Agent settings</div>
+                    <h2>Provider readiness</h2>
+                </div>
+                <button class="icon-close" type="button" data-close-settings>&times;</button>
+            </div>
+            <div class="provider-grid">
+                <div><span>ElevenLabs</span><strong id="providerElevenLabs">Checking…</strong></div>
+                <div><span>OpenAI</span><strong id="providerOpenAI">Checking…</strong></div>
+                <div><span>Twilio</span><strong id="providerTwilio">Checking…</strong></div>
+            </div>
+            <dl class="endpoint-list">
+                <div><dt>Public URL</dt><dd id="publicBaseUrl">Loading…</dd></div>
+                <div><dt>Voice webhook</dt><dd id="voiceWebhook">Loading…</dd></div>
+                <div><dt>Twilio number</dt><dd id="phoneNumber">Loading…</dd></div>
+            </dl>
+        </div>
+    </dialog>
+
+    <script type="module" src="/static/app.js?v=20250630"></script>
 </body>
 </html>
