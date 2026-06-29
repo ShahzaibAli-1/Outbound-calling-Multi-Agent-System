@@ -1,5 +1,6 @@
 const state = {
     scenarios: [],
+    scenarioGroups: { inbound: [], outbound: [] },
     calls: [],
     selectedCallSid: null,
     sidebarFilter: "all",
@@ -45,9 +46,11 @@ const elements = {
     endDemoBtn: document.querySelector("#endDemoBtn"),
     demoStatus: document.querySelector("#demoStatus"),
     demoScenario: document.querySelector("#demoScenario"),
+    demoDirection: document.querySelector("#demoDirection"),
     demoTranscript: document.querySelector("#demoTranscript"),
     callForm: document.querySelector("#callForm"),
     callScenario: document.querySelector("#callScenario"),
+    callDirection: document.querySelector("#callDirection"),
     callPrompt: document.querySelector("#callPrompt"),
     toNumber: document.querySelector("#toNumber"),
     callFeedback: document.querySelector("#callFeedback"),
@@ -129,16 +132,45 @@ function setProviderStatus(node, ready) {
     node.className = ready ? "status-ready" : "status-missing";
 }
 
-function populateScenarioSelect(selectNode, defaultLabel) {
+function scenariosForDirection(direction) {
+    const grouped = state.scenarioGroups[direction];
+    if (grouped?.length) return grouped;
+    return state.scenarios.filter((scenario) => scenario.direction === direction);
+}
+
+function populateScenarioSelect(selectNode, direction, defaultLabel) {
     if (!selectNode) return;
+    const scenarios = scenariosForDirection(direction);
     selectNode.innerHTML = [
         `<option value="">${escapeHtml(defaultLabel)}</option>`,
-        ...state.scenarios.map((scenario) => `<option value="${escapeHtml(scenario.id)}">${escapeHtml(scenario.label)}</option>`),
+        ...scenarios.map(
+            (scenario) => `<option value="${escapeHtml(scenario.id)}">${escapeHtml(scenario.label)}</option>`,
+        ),
     ].join("");
+}
+
+function refreshScenarioSelects() {
+    const demoDirection = elements.demoDirection?.value || "inbound";
+    populateScenarioSelect(
+        elements.demoScenario,
+        demoDirection,
+        demoDirection === "inbound" ? "Default inbound intake" : "Default outbound scenario",
+    );
+    populateScenarioSelect(elements.callScenario, "outbound", "Default outbound scenario");
 }
 
 function getScenarioLabel(scenarioId) {
     return state.scenarios.find((item) => item.id === scenarioId)?.label || "Medical intake";
+}
+
+function getScenarioDirection(scenarioId) {
+    return state.scenarios.find((item) => item.id === scenarioId)?.direction || "";
+}
+
+function directionLabel(direction) {
+    if (direction === "inbound") return "Inbound";
+    if (direction === "outbound") return "Outbound";
+    return "Call";
 }
 
 function callTitle(call) {
@@ -297,19 +329,35 @@ function renderOutcomes() {
 }
 
 function renderScenariosList() {
-    if (!state.scenarios.length) {
+    const inbound = scenariosForDirection("inbound");
+    const outbound = scenariosForDirection("outbound");
+    if (!inbound.length && !outbound.length) {
         elements.scenariosList.innerHTML = '<div class="empty-state">No scenarios loaded.</div>';
         return;
     }
-    elements.scenariosList.innerHTML = state.scenarios.slice(0, 6).map((scenario) => `
-        <div class="row-item">
-            <div>
-                <div class="row-name">${escapeHtml(scenario.label)}</div>
-                <div class="row-sub">${escapeHtml(scenario.description)}</div>
+
+    const renderGroup = (title, scenarios, badge) => {
+        if (!scenarios.length) return "";
+        return `
+            <div class="scenario-group">
+                <div class="scenario-group-label">${escapeHtml(title)}</div>
+                ${scenarios.slice(0, 5).map((scenario) => `
+                    <div class="row-item">
+                        <div>
+                            <div class="row-name">${escapeHtml(scenario.label)}</div>
+                            <div class="row-sub">${escapeHtml(scenario.description)}</div>
+                        </div>
+                        <div class="row-right"><span class="scenario-badge ${badge}">${escapeHtml(badge)}</span></div>
+                    </div>
+                `).join("")}
             </div>
-            <div class="row-right">Intake</div>
-        </div>
-    `).join("");
+        `;
+    };
+
+    elements.scenariosList.innerHTML = [
+        renderGroup("Inbound scenarios", inbound, "Inbound"),
+        renderGroup("Outbound scenarios", outbound, "Outbound"),
+    ].join("");
 }
 
 function renderTranscript(target, call) {
@@ -374,7 +422,10 @@ function updateLiveHeader(call) {
     }
     const isLive = call.status === "connected" || state.demoActive;
     elements.liveCallTitle.textContent = callTitle(call);
-    elements.liveCallType.textContent = getScenarioLabel(call.scenario_id);
+    const scenarioDirection = getScenarioDirection(call.scenario_id);
+    elements.liveCallType.textContent = scenarioDirection
+        ? `${directionLabel(scenarioDirection)} · ${getScenarioLabel(call.scenario_id)}`
+        : getScenarioLabel(call.scenario_id);
     elements.liveCallReason.textContent = callSubtitle(call);
     elements.liveStatusPill.innerHTML = isLive
         ? '<span class="pulse"></span>Live · ' + (call.call_type === "demo" ? "demo" : call.direction)
@@ -429,9 +480,11 @@ async function loadHealth() {
 
 async function loadScenarios() {
     const data = await fetchJson("/api/campaign-scenarios");
-    state.scenarios = data.scenarios || [];
-    populateScenarioSelect(elements.demoScenario, "Default medical intake");
-    populateScenarioSelect(elements.callScenario, "Default medical intake");
+    state.scenarioGroups = data.groups || { inbound: [], outbound: [] };
+    state.scenarios = data.scenarios?.length
+        ? data.scenarios
+        : [...(state.scenarioGroups.inbound || []), ...(state.scenarioGroups.outbound || [])];
+    refreshScenarioSelects();
     renderScenariosList();
 }
 
@@ -529,6 +582,10 @@ function bindDialogs() {
     });
     elements.deleteCallBtn?.addEventListener("click", () => {
         if (state.selectedCallSid) deleteCall(state.selectedCallSid).catch(console.error);
+    });
+
+    elements.demoDirection?.addEventListener("change", () => {
+        refreshScenarioSelects();
     });
 
     document.querySelectorAll("[data-close-demo]").forEach((node) => node.addEventListener("click", () => elements.demoDialog.close()));

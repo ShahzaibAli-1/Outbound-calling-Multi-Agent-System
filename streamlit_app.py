@@ -57,8 +57,15 @@ def api_request(method: str, path: str, *, payload: dict[str, Any] | None = None
     return response.json()
 
 
-def get_scenarios() -> list[dict[str, str]]:
-    return api_request("GET", "/api/campaign-scenarios").get("scenarios", [])
+def get_scenarios() -> dict[str, list[dict[str, str]]]:
+    payload = api_request("GET", "/api/campaign-scenarios")
+    groups = payload.get("groups") or {}
+    scenarios = payload.get("scenarios") or []
+    if not groups.get("inbound") and not groups.get("outbound"):
+        inbound = [scenario for scenario in scenarios if scenario.get("direction") == "inbound"]
+        outbound = [scenario for scenario in scenarios if scenario.get("direction") == "outbound"]
+        groups = {"inbound": inbound, "outbound": outbound}
+    return groups
 
 
 def get_health() -> dict[str, Any]:
@@ -139,12 +146,12 @@ if is_local_backend_url(st.session_state["backend_base_url"]):
     )
 
 health: dict[str, Any] | None = None
-scenarios: list[dict[str, str]] = []
+scenario_groups: dict[str, list[dict[str, str]]] = {"inbound": [], "outbound": []}
 calls: list[dict[str, Any]] = []
 
 try:
     health = get_health()
-    scenarios = get_scenarios()
+    scenario_groups = get_scenarios()
     calls = get_calls()
 except Exception as exc:
     st.error(f"Unable to reach the backend at {st.session_state['backend_base_url']}: {exc}")
@@ -155,6 +162,10 @@ except Exception as exc:
         )
         st.code('BACKEND_BASE_URL = "https://your-backend-domain.example.com"', language="toml")
     st.stop()
+
+all_scenarios = scenario_groups.get("inbound", []) + scenario_groups.get("outbound", [])
+outbound_scenarios = scenario_groups.get("outbound", [])
+inbound_scenarios = scenario_groups.get("inbound", [])
 
 status_columns = st.columns(4)
 status_columns[0].metric("Agent", str(health.get("agent") or "Unknown"))
@@ -172,15 +183,15 @@ with tabs[0]:
     st.subheader("Launch an outbound call")
     with st.form("outbound-call-form"):
         to_number = st.text_input("Destination phone number", placeholder="+1 202 555 0118")
-        scenario_options = {"Default medical intake prompt": ""}
-        scenario_options.update({scenario["label"]: scenario["id"] for scenario in scenarios})
-        scenario_label = st.selectbox("Campaign scenario", list(scenario_options.keys()))
+        scenario_options = {"Default outbound scenario": ""}
+        scenario_options.update({scenario["label"]: scenario["id"] for scenario in outbound_scenarios})
+        scenario_label = st.selectbox("Outbound scenario", list(scenario_options.keys()))
         custom_prompt = st.text_area(
             "Custom prompt override",
             placeholder="Optional custom prompt. If you enter one, it overrides the selected scenario.",
             height=180,
         )
-        st.caption(prompt_preview(scenarios, scenario_options[scenario_label], custom_prompt))
+        st.caption(prompt_preview(all_scenarios, scenario_options[scenario_label], custom_prompt))
         submit_outbound = st.form_submit_button("Place outbound call")
 
     if submit_outbound:
@@ -208,16 +219,18 @@ with tabs[1]:
             placeholder="Ask the agent something like a real caller would.",
             height=120,
         )
-        chat_scenario_options = {"Default medical intake prompt": ""}
-        chat_scenario_options.update({scenario["label"]: scenario["id"] for scenario in scenarios})
-        chat_scenario_label = st.selectbox("Campaign scenario", list(chat_scenario_options.keys()), key="chat-scenario")
+        chat_direction = st.selectbox("Call direction", ["Inbound", "Outbound"], key="chat-direction")
+        chat_scenario_list = inbound_scenarios if chat_direction == "Inbound" else outbound_scenarios
+        chat_scenario_options = {"Default scenario": ""}
+        chat_scenario_options.update({scenario["label"]: scenario["id"] for scenario in chat_scenario_list})
+        chat_scenario_label = st.selectbox("Scenario", list(chat_scenario_options.keys()), key="chat-scenario")
         chat_custom_prompt = st.text_area(
             "Custom prompt override",
             placeholder="Optional custom prompt. If you enter one, it overrides the selected scenario.",
             height=180,
             key="chat-prompt",
         )
-        st.caption(prompt_preview(scenarios, chat_scenario_options[chat_scenario_label], chat_custom_prompt))
+        st.caption(prompt_preview(all_scenarios, chat_scenario_options[chat_scenario_label], chat_custom_prompt))
         submit_test = st.form_submit_button("Run browser test")
 
     if submit_test:
@@ -275,5 +288,9 @@ with tabs[3]:
     st.write(f"Voice webhook: {health.get('voice_webhook')}")
     st.write(f"Media stream: {health.get('media_stream')}")
     st.write("Built-in scenarios:")
-    for scenario in scenarios:
+    st.markdown("**Inbound**")
+    for scenario in inbound_scenarios:
+        st.markdown(f"- **{scenario['label']}**: {scenario['description']}")
+    st.markdown("**Outbound**")
+    for scenario in outbound_scenarios:
         st.markdown(f"- **{scenario['label']}**: {scenario['description']}")

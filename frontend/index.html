@@ -6,7 +6,7 @@
     <title>Medory — Voice Agent</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,600;1,500&family=Figtree:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/styles.css?v=20250629">
+    <link rel="stylesheet" href="/static/styles.css?v=20250703">
 </head>
 <body>
     <div class="app">
@@ -147,7 +147,7 @@
                             </div>
                             <div class="card">
                                 <div class="card-head">
-                                    <div class="card-title">Intake scenarios</div>
+                                    <div class="card-title">Call scenarios</div>
                                 </div>
                                 <div id="scenariosList">
                                     <div class="empty-state">Loading scenarios…</div>
@@ -175,7 +175,14 @@
                 <button class="icon-close" type="button" data-close-demo>&times;</button>
             </div>
             <label class="field">
-                <span>Intake scenario</span>
+                <span>Call direction</span>
+                <select id="demoDirection">
+                    <option value="inbound">Inbound — patient calls the clinic</option>
+                    <option value="outbound">Outbound — clinic calls the patient</option>
+                </select>
+            </label>
+            <label class="field">
+                <span>Scenario</span>
                 <select id="demoScenario"></select>
             </label>
             <div class="modal-actions">
@@ -201,7 +208,13 @@
                 <input id="toNumber" type="tel" placeholder="+1 202 555 0108" required>
             </label>
             <label class="field">
-                <span>Intake scenario</span>
+                <span>Call direction</span>
+                <select id="callDirection">
+                    <option value="outbound" selected>Outbound — clinic calls the patient</option>
+                </select>
+            </label>
+            <label class="field">
+                <span>Outbound scenario</span>
                 <select id="callScenario"></select>
             </label>
             <label class="field">
@@ -237,6 +250,6 @@
         </div>
     </dialog>
 
-    <script type="module" src="/static/app.js?v=20250630"></script>
+    <script type="module" src="/static/app.js?v=20250703"></script>
 </body>
 </html>

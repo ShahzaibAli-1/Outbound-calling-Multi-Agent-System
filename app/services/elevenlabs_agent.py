@@ -114,32 +114,25 @@ CONSISTENT_TTS_SETTINGS = {
 
 
 def resolve_voice_id(settings: Settings, client: ElevenLabs | None = None) -> tuple[str, str | None]:
-    """Return a voice ID that exists for this API key, with an optional warning."""
-    requested = (settings.elevenlabs_voice_id or DEFAULT_ENGLISH_VOICE_ID).strip()
+    """Use ELEVENLABS_VOICE_ID from .env when set; otherwise pick a default from the account."""
+    requested = (settings.elevenlabs_voice_id or "").strip()
+    if requested:
+        return requested, None
+
     api_client = client or build_elevenlabs_client(settings)
     try:
         voices = api_client.voices.get_all()
         available = {voice.voice_id for voice in (getattr(voices, "voices", voices) or [])}
     except Exception:
-        return requested, None
-
-    if requested in available:
-        return requested, None
-
-    if FALLBACK_ENGLISH_VOICE_ID in available:
-        return (
-            FALLBACK_ENGLISH_VOICE_ID,
-            f"Voice '{requested}' was not found. Using fallback voice '{FALLBACK_ENGLISH_VOICE_ID}'.",
-        )
+        return DEFAULT_ENGLISH_VOICE_ID, None
 
     if DEFAULT_ENGLISH_VOICE_ID in available:
-        return (
-            DEFAULT_ENGLISH_VOICE_ID,
-            f"Voice '{requested}' was not found. Using default voice '{DEFAULT_ENGLISH_VOICE_ID}'.",
-        )
+        return DEFAULT_ENGLISH_VOICE_ID, None
+    if FALLBACK_ENGLISH_VOICE_ID in available:
+        return FALLBACK_ENGLISH_VOICE_ID, None
 
-    first_voice = next(iter(available), requested)
-    return first_voice, f"Voice '{requested}' was not found. Using '{first_voice}'."
+    first_voice = next(iter(available), DEFAULT_ENGLISH_VOICE_ID)
+    return first_voice, None
 
 
 def agent_override_permissions(
@@ -213,6 +206,7 @@ def sync_medory_agent_profile(
         "language": "en",
         "agent_id": settings.elevenlabs_agent_id,
         "voice_id": voice_id,
+        "configured_voice_id": settings.elevenlabs_voice_id,
         "tts_model": tts_model,
     }
     if voice_warning:

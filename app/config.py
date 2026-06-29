@@ -141,7 +141,7 @@ class Settings(BaseSettings):
         alias="ELEVENLABS_OVERRIDE_FIRST_MESSAGE",
     )
     elevenlabs_voice_id: str = Field(
-        default="EXAVITQu4vr4xnSDxMaL",
+        default="",
         alias="ELEVENLABS_VOICE_ID",
     )
     elevenlabs_tts_model: str = Field(

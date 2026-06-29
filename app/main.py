@@ -12,7 +12,7 @@ from twilio.base.exceptions import TwilioRestException
 from twilio.rest import Client
 from twilio.twiml.voice_response import Connect, VoiceResponse
 
-from app.campaigns import get_campaign_scenario, list_campaign_scenarios
+from app.campaigns import get_campaign_scenario, list_campaign_scenario_groups, list_campaign_scenarios
 from app.config import BASE_DIR, compose_voice_prompt, get_settings
 from app.models import ChatRequest, ChatResponse, DemoCallRequest, OutboundCallRequest, PatientIntakeRecord
 from app.services.demo_session import DemoCallSession, new_demo_call_sid
@@ -82,6 +82,12 @@ def get_runtime_warnings() -> list[str]:
         warnings.append(
             "ElevenLabs first_message override is disabled. Set the agent opening line in the "
             "ElevenLabs dashboard (use AGENT_GREETING from .env as reference)."
+        )
+    if not agent_sync_status.get("synced") and settings.elevenlabs_voice_id:
+        warnings.append(
+            f"ElevenLabs agent sync failed for ELEVENLABS_VOICE_ID={settings.elevenlabs_voice_id}: "
+            f"{agent_sync_status.get('message', 'unknown error')}. "
+            "Pick a voice ID from your ElevenLabs Voice Library or add this voice to your account."
         )
     if "ngrok-free.app" in settings.public_base_url.lower():
         warnings.append(
@@ -198,8 +204,14 @@ async def healthcheck() -> dict[str, object]:
 
 
 @app.get("/api/campaign-scenarios")
-async def get_campaign_scenarios() -> dict[str, object]:
-    return {"scenarios": list_campaign_scenarios()}
+async def get_campaign_scenarios(direction: str | None = None) -> dict[str, object]:
+    normalized = direction.lower() if direction else None
+    if normalized and normalized not in {"inbound", "outbound"}:
+        raise HTTPException(status_code=400, detail="direction must be 'inbound' or 'outbound'")
+    return {
+        "scenarios": list_campaign_scenarios(normalized),  # type: ignore[arg-type]
+        "groups": list_campaign_scenario_groups(),
+    }
 
 
 @app.post("/api/chat/test", response_model=ChatResponse)
