@@ -112,7 +112,13 @@ class CallSession:
             callback_agent_response=self._on_agent_response,
             callback_user_transcript=self._on_user_transcript,
         )
-        self._conversation.start_session()
+        try:
+            self._conversation.start_session()
+        except Exception as exc:
+            message = str(exc)
+            self._conversation = None
+            self._call_store.add_event(self.call_sid, "error", f"ElevenLabs session failed: {message}")
+            raise
         await self._audio_interface.handle_twilio_message(payload)
         self._call_store.add_event(
             self.call_sid,

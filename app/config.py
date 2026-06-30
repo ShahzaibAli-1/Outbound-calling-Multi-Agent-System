@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import os
 import re
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
+import httpx
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -187,6 +189,27 @@ class Settings(BaseSettings):
         return f"{self.websocket_base_url.rstrip('/')}/ws/twilio-media"
 
 
+def detect_ngrok_public_url() -> str | None:
+    """Read the active HTTPS ngrok tunnel from the local ngrok agent API."""
+    try:
+        response = httpx.get("http://127.0.0.1:4040/api/tunnels", timeout=2.0)
+        response.raise_for_status()
+        for tunnel in response.json().get("tunnels", []):
+            if tunnel.get("proto") == "https" and tunnel.get("public_url"):
+                return str(tunnel["public_url"]).rstrip("/")
+    except Exception:
+        return None
+    return None
+
+
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    auto_detect = os.getenv("AUTO_DETECT_NGROK", "true").strip().lower() in {"1", "true", "yes", "on"}
+    if not auto_detect:
+        return settings
+
+    detected = detect_ngrok_public_url()
+    if detected and detected != settings.public_base_url.rstrip("/"):
+        return settings.model_copy(update={"public_base_url": detected})
+    return settings

@@ -167,3 +167,52 @@ Copy from `.env.example` if you want a clean template. The application reads the
 - Twilio must be able to reach your app over a public HTTPS URL.
 - For outbound calls and browser tests, a custom prompt overrides any selected campaign scenario. If both are blank, the app falls back to `test_system_prompt.txt`.
 - On Twilio trial accounts, outbound calls only work to verified destination numbers.
+
+## Fix "Application error occurred" on outbound calls
+
+Twilio says **Application error occurred** when your phone answers but Twilio **cannot fetch valid TwiML** from your voice webhook (`PUBLIC_BASE_URL/api/twilio/voice`). The call often ends in a few seconds.
+
+### Step-by-step fix
+
+1. **Start the FastAPI server** (leave it running):
+   ```powershell
+   python -m uvicorn app.main:app --host 0.0.0.0 --port 3000
+   ```
+
+2. **Start a public HTTPS tunnel** to port 3000 (in a second terminal):
+   ```powershell
+   ngrok http 3000
+   ```
+   Copy the **https** URL (e.g. `https://abc123.ngrok-free.app`).
+
+3. **Update `.env`** with the new tunnel URL:
+   ```env
+   PUBLIC_BASE_URL=https://abc123.ngrok-free.app
+   ```
+
+4. **Restart the FastAPI server** so it reloads `.env` (required after any `.env` change).
+
+5. **Verify the webhook** — open in a browser or run:
+   ```powershell
+   curl.exe -X POST "https://YOUR-NGROK-URL.ngrok-free.app/api/twilio/voice" -d "CallSid=test&From=%2B1&To=%2B1&Direction=outbound-api"
+   ```
+   You should get XML containing `<Response>` and `<Stream url="wss://...`.
+
+6. **Check `/api/health`** — `public_url_status.voice_webhook_ok` must be `true`. If `false`, your tunnel URL is wrong or ngrok is not running.
+
+7. **Twilio trial account** — verify the destination number (`+923...`) under [Twilio Verified Caller IDs](https://console.twilio.com/us1/develop/phone-numbers/manage/verified). Trial accounts can only call verified numbers.
+
+8. **Enable Pakistan geo permissions** (if calling `+92`) in Twilio Console → Voice → Settings → Geo permissions.
+
+9. **Place the outbound call again** from the dashboard.
+
+### Common causes
+
+| Symptom | Cause | Fix |
+|--------|--------|-----|
+| Error right when you pick up | Stale `PUBLIC_BASE_URL` / ngrok not running | Update `.env`, restart server |
+| 4-second call then hangup | Webhook unreachable | Same as above |
+| Call never connects | Unverified number on trial | Verify number in Twilio |
+| No agent audio after connect | ElevenLabs agent/voice misconfigured | Check `/api/health` warnings |
+
+Do **not** use an old ngrok URL after restarting ngrok — the subdomain changes each time on the free plan unless you use a reserved domain.

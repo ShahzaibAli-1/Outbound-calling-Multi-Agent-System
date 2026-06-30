@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import anyio
+import httpx
 from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -13,7 +15,7 @@ from twilio.rest import Client
 from twilio.twiml.voice_response import Connect, VoiceResponse
 
 from app.campaigns import get_campaign_scenario, list_campaign_scenario_groups, list_campaign_scenarios
-from app.config import BASE_DIR, compose_voice_prompt, get_settings
+from app.config import BASE_DIR, compose_voice_prompt, detect_ngrok_public_url, get_settings
 from app.models import ChatRequest, ChatResponse, DemoCallRequest, OutboundCallRequest, PatientIntakeRecord
 from app.services.demo_session import DemoCallSession, new_demo_call_sid
 from app.services.elevenlabs_agent import (
@@ -52,6 +54,35 @@ prompt_overrides: dict[str, str] = {}
 if frontend_dir.exists():
     app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
 
+logger = logging.getLogger(__name__)
+
+
+def configure_twilio_phone_webhooks(client: Client) -> dict[str, object]:
+    """Keep the Twilio number voice + status webhooks aligned with PUBLIC_BASE_URL."""
+    voice_url = settings.voice_webhook_url
+    status_url = settings.status_callback_url
+    numbers = client.incoming_phone_numbers.list(phone_number=settings.twilio_phone_number)
+    updated = 0
+    for number in numbers:
+        number.update(
+            voice_url=voice_url,
+            voice_method="POST",
+            status_callback=status_url,
+            status_callback_method="POST",
+        )
+        updated += 1
+    return {
+        "phone_number": settings.twilio_phone_number,
+        "voice_url": voice_url,
+        "status_callback": status_url,
+        "updated_numbers": updated,
+    }
+
+
+twilio_webhook_status = configure_twilio_phone_webhooks(twilio_client)
+logger.info("PUBLIC_BASE_URL=%s", settings.public_base_url)
+logger.info("Twilio voice webhook=%s", settings.voice_webhook_url)
+
 
 def seed_patient_name(call_sid: str) -> None:
     if not settings.hardcoded_patient_name:
@@ -72,6 +103,11 @@ def get_runtime_warnings() -> list[str]:
             "ELEVENLABS_AGENT_ID is not set. Create an ElevenLabs Conversational AI agent "
             "and add its ID to .env before placing or receiving calls."
         )
+    if not agent_sync_status.get("synced"):
+        warnings.append(
+            f"ElevenLabs agent sync failed: {agent_sync_status.get('message', 'unknown error')}. "
+            "Fix ELEVENLABS_VOICE_ID / ELEVENLABS_AGENT_ID and restart the server."
+        )
     if not settings.elevenlabs_override_prompt:
         warnings.append(
             "ElevenLabs prompt override is disabled. Configure the agent system prompt in the "
@@ -83,12 +119,6 @@ def get_runtime_warnings() -> list[str]:
             "ElevenLabs first_message override is disabled. Set the agent opening line in the "
             "ElevenLabs dashboard (use AGENT_GREETING from .env as reference)."
         )
-    if not agent_sync_status.get("synced") and settings.elevenlabs_voice_id:
-        warnings.append(
-            f"ElevenLabs agent sync failed for ELEVENLABS_VOICE_ID={settings.elevenlabs_voice_id}: "
-            f"{agent_sync_status.get('message', 'unknown error')}. "
-            "Pick a voice ID from your ElevenLabs Voice Library or add this voice to your account."
-        )
     if "ngrok-free.app" in settings.public_base_url.lower():
         warnings.append(
             "PUBLIC_BASE_URL is using ngrok-free.app. Twilio media streams rely on a GET-based "
@@ -96,6 +126,59 @@ def get_runtime_warnings() -> list[str]:
             "Use a paid ngrok/custom domain or another public HTTPS/WSS tunnel without an interstitial page."
         )
     return warnings
+
+
+async def check_public_base_url_reachable() -> dict[str, object]:
+    """Verify Twilio can reach the configured PUBLIC_BASE_URL voice webhook."""
+    base = settings.public_base_url.rstrip("/")
+    voice_url = settings.voice_webhook_url
+    result: dict[str, object] = {
+        "public_base_url": base,
+        "voice_webhook": voice_url,
+        "media_stream": settings.media_stream_url,
+        "reachable": False,
+        "voice_webhook_ok": False,
+        "message": "Public URL check not run.",
+    }
+    try:
+        headers = {"ngrok-skip-browser-warning": "true"}
+        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+            health_response = await client.get(f"{base}/api/health", headers=headers)
+            result["reachable"] = health_response.status_code == 200
+            voice_response = await client.post(
+                voice_url,
+                data={
+                    "CallSid": "CA_healthcheck",
+                    "From": settings.twilio_phone_number,
+                    "To": "+10000000000",
+                    "Direction": "outbound-api",
+                },
+                headers=headers,
+            )
+            body = voice_response.text
+            result["voice_webhook_ok"] = (
+                voice_response.status_code == 200
+                and "<Response>" in body
+                and "<Stream" in body
+            )
+            result["voice_webhook_status"] = voice_response.status_code
+            if result["reachable"] and result["voice_webhook_ok"]:
+                result["message"] = "Public URL and Twilio voice webhook are reachable."
+            elif not result["reachable"]:
+                result["message"] = (
+                    "PUBLIC_BASE_URL is not reachable. Start ngrok (or your tunnel), update .env, "
+                    "and restart the server."
+                )
+            else:
+                result["message"] = (
+                    f"Voice webhook returned HTTP {voice_response.status_code}. "
+                    "Twilio will play 'Application error' when the call is answered."
+                )
+    except Exception as exc:
+        result["message"] = (
+            f"Cannot reach PUBLIC_BASE_URL ({base}). Start your tunnel and update .env: {exc}"
+        )
+    return result
 
 
 def get_or_create_session(
@@ -183,6 +266,10 @@ async def delete_call(call_sid: str) -> dict[str, str]:
 @app.get("/api/health")
 async def healthcheck() -> dict[str, object]:
     agent_status = verify_elevenlabs_agent(settings, elevenlabs_client)
+    public_url_status = await check_public_base_url_reachable()
+    warnings = get_runtime_warnings()
+    if not public_url_status.get("voice_webhook_ok"):
+        warnings.append(str(public_url_status.get("message")))
     return {
         "ok": True,
         "agent": settings.agent_name,
@@ -192,6 +279,8 @@ async def healthcheck() -> dict[str, object]:
         "public_base_url": settings.public_base_url,
         "voice_webhook": settings.voice_webhook_url,
         "media_stream": settings.media_stream_url,
+        "public_url_status": public_url_status,
+        "twilio_webhooks": twilio_webhook_status,
         "elevenlabs_agent": agent_status,
         "elevenlabs_agent_sync": agent_sync_status,
         "providers": {
@@ -199,7 +288,7 @@ async def healthcheck() -> dict[str, object]:
             "openai": bool(settings.openai_api_key),
             "twilio": bool(settings.twilio_account_sid and settings.twilio_auth_token),
         },
-        "warnings": get_runtime_warnings(),
+        "warnings": warnings,
     }
 
 
@@ -297,6 +386,12 @@ async def create_outbound_call(payload: OutboundCallRequest) -> dict[str, str]:
         system_prompt=payload.system_prompt,
         scenario_id=payload.scenario_id,
     )
+    sync_medory_agent_profile(
+        settings,
+        elevenlabs_client,
+        system_prompt=resolved_prompt or settings.agent_system_prompt,
+        first_message=settings.agent_greeting,
+    )
 
     if settings.elevenlabs_agent_phone_number_id:
         initiation_data = build_conversation_config(
@@ -364,6 +459,13 @@ async def create_outbound_call(payload: OutboundCallRequest) -> dict[str, str]:
     if resolved_prompt:
         prompt_overrides[call_sid] = resolved_prompt
 
+    get_or_create_session(
+        call_sid=call_sid,
+        from_number=settings.twilio_phone_number,
+        to_number=payload.to_number,
+        direction="outbound-api",
+    )
+
     store.ensure_call(
         call_sid,
         from_number=settings.twilio_phone_number,
@@ -386,19 +488,29 @@ async def create_outbound_call(payload: OutboundCallRequest) -> dict[str, str]:
 @app.api_route("/api/twilio/voice", methods=["GET", "POST"])
 @app.api_route("/twilio/voice", methods=["GET", "POST"])
 async def twilio_voice_webhook(request: Request) -> Response:
-    form = await request.form()
-    call_sid = str(form.get("CallSid", ""))
-    from_number = form.get("From")
-    to_number = form.get("To")
-    direction = str(form.get("Direction", "inbound"))
+    try:
+        if request.method == "GET":
+            form = dict(request.query_params)
+        else:
+            form = dict(await request.form())
 
-    get_or_create_session(
-        call_sid=call_sid,
-        from_number=str(from_number) if from_number else None,
-        to_number=str(to_number) if to_number else None,
-        direction=direction,
-    )
-    if call_sid:
+        call_sid = str(form.get("CallSid", "")).strip()
+        from_number = form.get("From")
+        to_number = form.get("To")
+        direction = str(form.get("Direction", "inbound")).strip() or "inbound"
+
+        if not call_sid:
+            logger.error("Twilio voice webhook missing CallSid.")
+            response = VoiceResponse()
+            response.say("Sorry, this line is temporarily unavailable. Please try again later.")
+            return Response(content=str(response), media_type="application/xml", status_code=200)
+
+        get_or_create_session(
+            call_sid=call_sid,
+            from_number=str(from_number) if from_number else None,
+            to_number=str(to_number) if to_number else None,
+            direction=direction,
+        )
         store.ensure_call(
             call_sid,
             from_number=str(from_number) if from_number else None,
@@ -409,11 +521,19 @@ async def twilio_voice_webhook(request: Request) -> Response:
         store.add_event(call_sid, "status", "Twilio voice webhook requested.")
         seed_patient_name(call_sid)
 
-    response = VoiceResponse()
-    connect = Connect()
-    connect.stream(url=f"{settings.media_stream_url}?call_sid={call_sid}")
-    response.append(connect)
-    return Response(content=str(response), media_type="application/xml")
+        stream_url = f"{settings.media_stream_url}?call_sid={call_sid}"
+        response = VoiceResponse()
+        connect = Connect()
+        stream = connect.stream(url=stream_url)
+        stream.parameter(name="call_sid", value=call_sid)
+        response.append(connect)
+        store.add_event(call_sid, "system", f"Returning TwiML media stream to {stream_url}")
+        return Response(content=str(response), media_type="application/xml")
+    except Exception as exc:
+        logger.exception("Twilio voice webhook failed: %s", exc)
+        response = VoiceResponse()
+        response.say("Sorry, an application error occurred. Please try again later.")
+        return Response(content=str(response), media_type="application/xml", status_code=200)
 
 
 @app.post("/api/twilio/status")
@@ -451,13 +571,15 @@ async def twilio_media_stream(websocket: WebSocket) -> None:
             if event_type == "start":
                 start_payload = payload.get("start", {})
                 call_sid = start_payload.get("callSid") or query_call_sid
+                custom_params = start_payload.get("customParameters") or {}
+                call_sid = custom_params.get("call_sid") or call_sid
                 session = call_sessions.get(call_sid)
                 if session is None:
                     session = get_or_create_session(
                         call_sid=call_sid,
                         from_number=None,
                         to_number=None,
-                        direction="inbound",
+                        direction="outbound-api",
                     )
                 await session.attach(websocket)
                 await session.handle_twilio_message(payload)
