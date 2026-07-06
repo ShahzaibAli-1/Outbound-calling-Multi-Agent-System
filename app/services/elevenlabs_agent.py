@@ -107,9 +107,9 @@ DEFAULT_ENGLISH_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"
 FALLBACK_ENGLISH_VOICE_ID = "hpp4J3VqNfWAUOO0d1Us"
 DEFAULT_ENGLISH_TTS_MODEL = "eleven_turbo_v2"
 CONSISTENT_TTS_SETTINGS = {
-    "stability": 0.62,
-    "similarity_boost": 0.88,
-    "speed": 0.96,
+    "stability": 0.78,
+    "similarity_boost": 0.82,
+    "speed": 1.0,
 }
 
 
@@ -175,13 +175,14 @@ def sync_medory_agent_profile(
     resolved_greeting = (first_message or settings.agent_greeting).strip()
     voice_id, voice_warning = resolve_voice_id(settings, api_client)
     tts_model = settings.elevenlabs_tts_model or DEFAULT_ENGLISH_TTS_MODEL
+    agent_language = (settings.elevenlabs_language or "en").strip() or "en"
 
     try:
         api_client.conversational_ai.agents.update(
             agent_id=settings.elevenlabs_agent_id,
             conversation_config={
                 "agent": {
-                    "language": "en",
+                    "language": agent_language,
                     "first_message": resolved_greeting,
                     "prompt": {"prompt": resolved_prompt},
                 },
@@ -202,8 +203,8 @@ def sync_medory_agent_profile(
 
     result = {
         "synced": True,
-        "message": "ElevenLabs agent synced with a single locked English voice.",
-        "language": "en",
+        "message": f"ElevenLabs agent synced (language={agent_language}, single locked voice).",
+        "language": agent_language,
         "agent_id": settings.elevenlabs_agent_id,
         "voice_id": voice_id,
         "configured_voice_id": settings.elevenlabs_voice_id,

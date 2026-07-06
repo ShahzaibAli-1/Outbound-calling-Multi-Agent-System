@@ -7,7 +7,8 @@ from typing import Literal
 ScenarioDirection = Literal["inbound", "outbound"]
 
 INBOUND_IDENTITY_RULE = (
-    "The patient's full legal name is already on file — do not ask for it or ask for spelling. "
+    "For returning patients already registered, do not re-collect their name if it is on file. "
+    "For new patients, collect their full legal name and ask them to spell it letter by letter."
 )
 
 OUTBOUND_OPENING_RULE = (
@@ -61,12 +62,14 @@ INBOUND_SCENARIOS: list[CampaignScenario] = [
         description="Schedule or confirm an appointment while collecting intake details for the visit.",
         direction="inbound",
         prompt=(
-            "You are answering an incoming call to schedule or confirm a clinic appointment. "
-            f"{INBOUND_IDENTITY_RULE}"
-            "Ask the reason for the visit, whether they are a new or returning patient, and their preferred "
-            "appointment date or time window. Collect brief symptom context if relevant, plus allergies and "
-            "current medications when time allows. Ask one question at a time and summarize the appointment "
-            "preference before ending the call."
+            "You are answering an incoming call to book or reschedule a clinic appointment. "
+            "FIRST ask: 'Are you already registered with us, or are you new here?' "
+            "If REGISTERED: confirm date of birth, ask reason for visit, preferred appointment date and time, "
+            "and any updates to symptoms or allergies. Do not re-ask for their name if already on file. "
+            "If NEW: collect in order — full legal name, ask them to spell it letter by letter, date of birth, "
+            "callback phone, reason for visit, any previous or current symptoms, known allergies, current medications "
+            "if any, then preferred appointment date and time. Read the appointment slot back once to confirm. "
+            "Ask one short question at a time. Summarize before ending the call."
         ),
     ),
     CampaignScenario(

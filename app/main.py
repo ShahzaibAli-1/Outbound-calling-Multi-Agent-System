@@ -50,6 +50,7 @@ twilio_client = Client(settings.twilio_account_sid, settings.twilio_auth_token)
 call_sessions: dict[str, CallSession] = {}
 demo_sessions: dict[str, DemoCallSession] = {}
 prompt_overrides: dict[str, str] = {}
+greeting_overrides: dict[str, str] = {}
 
 if frontend_dir.exists():
     app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
@@ -181,6 +182,42 @@ async def check_public_base_url_reachable() -> dict[str, object]:
     return result
 
 
+def is_inbound_twilio_direction(direction: str) -> bool:
+    return "inbound" in direction.lower()
+
+
+def prepare_inbound_call(
+    *,
+    call_sid: str,
+    scenario_id: str | None = None,
+) -> tuple[str | None, str, str]:
+    """Resolve prompt, greeting, and scenario for an incoming Twilio call."""
+    selected_scenario = scenario_id or settings.default_inbound_scenario_id
+    scenario = get_campaign_scenario(selected_scenario)
+    if scenario is None:
+        selected_scenario = settings.default_inbound_scenario_id
+        scenario = get_campaign_scenario(selected_scenario)
+
+    if scenario is not None:
+        resolved_prompt = compose_voice_prompt(scenario.prompt)
+        prompt_source = f"inbound scenario '{scenario.label}'"
+    else:
+        resolved_prompt = settings.agent_system_prompt
+        prompt_source = "default inbound prompt"
+
+    greeting = settings.resolved_inbound_greeting()
+    prompt_overrides[call_sid] = resolved_prompt
+    greeting_overrides[call_sid] = greeting
+
+    sync_medory_agent_profile(
+        settings,
+        elevenlabs_client,
+        system_prompt=resolved_prompt,
+        first_message=greeting,
+    )
+    return selected_scenario, resolved_prompt, prompt_source
+
+
 def get_or_create_session(
     *,
     call_sid: str,
@@ -201,6 +238,8 @@ def get_or_create_session(
         to_number=to_number,
         direction=direction,
         system_prompt=prompt_overrides.get(call_sid),
+        first_message=greeting_overrides.get(call_sid),
+        twilio_client=twilio_client,
     )
     call_sessions[call_sid] = session
     return session
@@ -257,6 +296,7 @@ async def get_call(call_sid: str) -> dict[str, object]:
 async def delete_call(call_sid: str) -> dict[str, str]:
     demo_sessions.pop(call_sid, None)
     prompt_overrides.pop(call_sid, None)
+    greeting_overrides.pop(call_sid, None)
     call_sessions.pop(call_sid, None)
     if not store.delete_call(call_sid):
         raise HTTPException(status_code=404, detail=f"Call not found: {call_sid}")
@@ -276,6 +316,13 @@ async def healthcheck() -> dict[str, object]:
         "staff_name": settings.staff_name,
         "platform_name": "Medory",
         "phone_number": settings.twilio_phone_number,
+        "inbound_number": settings.twilio_phone_number,
+        "default_inbound_scenario_id": settings.default_inbound_scenario_id,
+        "inbound_setup": {
+            "dial": settings.twilio_phone_number,
+            "voice_webhook": settings.voice_webhook_url,
+            "note": "Call the Twilio number while the server and tunnel are running.",
+        },
         "public_base_url": settings.public_base_url,
         "voice_webhook": settings.voice_webhook_url,
         "media_stream": settings.media_stream_url,
@@ -505,6 +552,12 @@ async def twilio_voice_webhook(request: Request) -> Response:
             response.say("Sorry, this line is temporarily unavailable. Please try again later.")
             return Response(content=str(response), media_type="application/xml", status_code=200)
 
+        inbound_call = is_inbound_twilio_direction(direction)
+        scenario_id: str | None = None
+        prompt_source = "default prompt"
+        if inbound_call:
+            scenario_id, _, prompt_source = prepare_inbound_call(call_sid=call_sid)
+
         get_or_create_session(
             call_sid=call_sid,
             from_number=str(from_number) if from_number else None,
@@ -515,9 +568,12 @@ async def twilio_voice_webhook(request: Request) -> Response:
             call_sid,
             from_number=str(from_number) if from_number else None,
             to_number=str(to_number) if to_number else None,
-            direction=direction,
+            direction="inbound" if inbound_call else direction,
             call_type="phone",
+            scenario_id=scenario_id,
         )
+        if inbound_call:
+            store.add_event(call_sid, "system", f"Inbound call configured with {prompt_source}.")
         store.add_event(call_sid, "status", "Twilio voice webhook requested.")
         seed_patient_name(call_sid)
 
@@ -547,6 +603,7 @@ async def twilio_status_webhook(request: Request) -> dict[str, str]:
         store.add_event(call_sid, "status", f"Twilio status changed to {call_status}.")
         if call_status in {"completed", "busy", "failed", "no-answer", "canceled"}:
             prompt_overrides.pop(call_sid, None)
+            greeting_overrides.pop(call_sid, None)
     return {"ok": "true"}
 
 
@@ -588,12 +645,16 @@ async def twilio_media_stream(websocket: WebSocket) -> None:
                 await session.handle_twilio_message(payload)
                 if event_type == "stop":
                     call_sessions.pop(session.call_sid, None)
+                    prompt_overrides.pop(session.call_sid, None)
+                    greeting_overrides.pop(session.call_sid, None)
                     break
 
     except WebSocketDisconnect:
         if session is not None:
             await session.close(status="disconnected")
             call_sessions.pop(session.call_sid, None)
+            prompt_overrides.pop(session.call_sid, None)
+            greeting_overrides.pop(session.call_sid, None)
     except Exception as exc:
         call_sid = session.call_sid if session is not None else query_call_sid
         if call_sid:
@@ -601,6 +662,8 @@ async def twilio_media_stream(websocket: WebSocket) -> None:
         if session is not None:
             await session.close(status="error")
             call_sessions.pop(session.call_sid, None)
+            prompt_overrides.pop(session.call_sid, None)
+            greeting_overrides.pop(session.call_sid, None)
 
 
 @app.websocket("/ws/demo-call")

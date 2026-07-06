@@ -60,6 +60,8 @@ const elements = {
     publicBaseUrl: document.querySelector("#publicBaseUrl"),
     voiceWebhook: document.querySelector("#voiceWebhook"),
     phoneNumber: document.querySelector("#phoneNumber"),
+    inboundNumber: document.querySelector("#inboundNumber"),
+    inboundScenario: document.querySelector("#inboundScenario"),
 };
 
 function escapeHtml(value) {
@@ -473,6 +475,8 @@ async function loadHealth() {
     elements.publicBaseUrl.textContent = health.public_base_url;
     elements.voiceWebhook.textContent = health.voice_webhook;
     elements.phoneNumber.textContent = health.phone_number || "Not configured";
+    elements.inboundNumber.textContent = health.inbound_number || health.phone_number || "Not configured";
+    elements.inboundScenario.textContent = health.default_inbound_scenario_id || "patient-intake";
     setProviderStatus(elements.providerElevenLabs, health.providers?.elevenlabs);
     setProviderStatus(elements.providerOpenAI, health.providers?.openai);
     setProviderStatus(elements.providerTwilio, health.providers?.twilio);

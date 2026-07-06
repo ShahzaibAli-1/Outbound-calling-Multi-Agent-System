@@ -119,7 +119,42 @@ If either override is enabled in `.env` but not allowed in ElevenLabs Security, 
 
 - Point your Twilio incoming voice webhook to `/api/twilio/voice` on your public URL.
 - The app bridges Twilio audio to your ElevenLabs agent over WebSocket.
-- Outbound calls are started through this app's `/api/calls/outbound` endpoint.
+- **Inbound:** dial your `TWILIO_PHONE_NUMBER` while the server and tunnel are running.
+- **Outbound:** start calls from the dashboard via `/api/calls/outbound`.
+
+### Inbound call setup (step by step)
+
+1. **Start the server and tunnel**
+   ```powershell
+   python -m uvicorn app.main:app --host 0.0.0.0 --port 3000
+   ngrok http 3000
+   ```
+   Set `PUBLIC_BASE_URL` to your ngrok HTTPS URL (or use `AUTO_DETECT_NGROK=true`).
+
+2. **Restart the server** so it reloads `.env` and auto-configures Twilio webhooks on startup.
+
+3. **Verify health** — open `GET /api/health` and confirm:
+   - `public_url_status.voice_webhook_ok` is `true`
+   - `elevenlabs_agent_sync.synced` is `true`
+   - `inbound_setup.dial` shows your Twilio number
+
+4. **Twilio Console** (only if auto-sync failed):  
+   [Phone Numbers](https://console.twilio.com/us1/develop/phone-numbers/manage/incoming) → your number → **Voice configuration**:
+   - **A call comes in:** Webhook → `https://YOUR-PUBLIC-URL/api/twilio/voice` → **HTTP POST**
+   - **Call status changes:** `https://YOUR-PUBLIC-URL/api/twilio/status` → **HTTP POST**
+
+5. **ElevenLabs agent** — paste `prompt_multilingual_en_ar.txt` or `prompt_english.txt` into the system prompt. Enable **End Call** under System tools.
+
+6. **Optional `.env` for inbound**
+   ```env
+   DEFAULT_INBOUND_SCENARIO_ID=patient-intake
+   AGENT_GREETING_INBOUND=Hello, this is Medory Call Center. How can I help you today?
+   ```
+   Available inbound scenario IDs: `patient-intake`, `new-patient-intake`, `appointment-intake`, `symptom-triage-intake`, `insurance-verification`, `medication-refill-intake`, `referral-intake`, `pediatric-intake`, `mental-health-intake`, `urgent-triage-intake`.
+
+7. **Test inbound** — call `TWILIO_PHONE_NUMBER` from your mobile. The call should appear in the dashboard with direction **inbound**.
+
+**Important:** Do **not** route the Twilio number to ElevenLabs native integration *and* this app at the same time. Pick one bridge (Option A below, or Option B).
 
 ### Option B: ElevenLabs native Twilio integration (optional)
 
@@ -141,6 +176,9 @@ Copy from `.env.example` if you want a clean template. The application reads the
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_AUTH_TOKEN`
 - `TWILIO_PHONE_NUMBER`
+- `DEFAULT_INBOUND_SCENARIO_ID` (scenario when someone calls your Twilio number)
+- `AGENT_GREETING_INBOUND` (opening line for inbound calls; falls back to `AGENT_GREETING`)
+- `ELEVENLABS_LANGUAGE` (agent language code, e.g. `en`; add Arabic in ElevenLabs dashboard for multilingual)
 - `AGENT_NAME`
 - `AGENT_GREETING`
 - `AGENT_SYSTEM_PROMPT`

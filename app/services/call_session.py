@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from typing import Any
 
 from fastapi import WebSocket
@@ -29,15 +30,20 @@ class CallSession:
         to_number: str | None,
         direction: str,
         system_prompt: str | None = None,
+        first_message: str | None = None,
+        twilio_client: Any | None = None,
     ) -> None:
         self._settings = settings
         self._call_store = call_store
         self._intake_extractor = intake_extractor
+        self._twilio_client = twilio_client
         self._websocket: WebSocket | None = None
         self._loop = asyncio.get_event_loop()
         self._system_prompt = system_prompt or settings.agent_system_prompt
+        self._first_message = (first_message or settings.agent_greeting).strip()
         self._history: list[dict[str, str]] = []
         self._closed = False
+        self._end_watcher: threading.Thread | None = None
 
         self.call_sid = call_sid
         self._call_store.ensure_call(
@@ -93,7 +99,7 @@ class CallSession:
         config = build_conversation_config(
             self._settings,
             system_prompt=self._system_prompt,
-            first_message=self._settings.agent_greeting,
+            first_message=self._first_message,
             client=client,
         )
         override_mode = "with overrides" if config else "using ElevenLabs dashboard config only"
@@ -119,6 +125,7 @@ class CallSession:
             self._conversation = None
             self._call_store.add_event(self.call_sid, "error", f"ElevenLabs session failed: {message}")
             raise
+        self._start_end_watcher()
         await self._audio_interface.handle_twilio_message(payload)
         self._call_store.add_event(
             self.call_sid,
@@ -177,6 +184,45 @@ class CallSession:
         except Exception as exc:  # pragma: no cover - defensive logging path
             self._call_store.add_event(self.call_sid, "error", f"Intake extraction error: {exc}")
 
+    def _start_end_watcher(self) -> None:
+        """Watch for the ElevenLabs agent ending the conversation (End Call tool) and hang up Twilio."""
+        conversation = self._conversation
+        if conversation is None:
+            return
+
+        def _wait_for_end() -> None:
+            try:
+                conversation.wait_for_session_end()
+            except Exception as exc:  # pragma: no cover - defensive logging path
+                logger.debug("Session-end watcher stopped for %s: %s", self.call_sid, exc)
+            asyncio.run_coroutine_threadsafe(self._handle_agent_ended_call(), self._loop)
+
+        self._end_watcher = threading.Thread(target=_wait_for_end, daemon=True)
+        self._end_watcher.start()
+
+    async def _handle_agent_ended_call(self) -> None:
+        if self._closed:
+            return
+        self._call_store.add_event(
+            self.call_sid,
+            "system",
+            "Agent ended the conversation. Hanging up the phone call.",
+        )
+        await self._hang_up_twilio()
+        await self.close(status="completed")
+
+    async def _hang_up_twilio(self) -> None:
+        """Terminate the live Twilio call so the line actually disconnects after goodbye."""
+        if self._twilio_client is None or not self.call_sid.startswith("CA"):
+            return
+        try:
+            await asyncio.to_thread(
+                lambda: self._twilio_client.calls(self.call_sid).update(status="completed")
+            )
+            self._call_store.add_event(self.call_sid, "status", "Twilio call disconnected by agent.")
+        except Exception as exc:  # pragma: no cover - defensive logging path
+            logger.warning("Failed to hang up Twilio call %s: %s", self.call_sid, exc)
+
     async def close(self, status: str = "completed") -> None:
         if self._closed:
             return
@@ -194,6 +240,8 @@ class CallSession:
             finally:
                 self._conversation = None
 
+        if self._audio_interface is not None:
+            self._audio_interface.stop()
         self._audio_interface = None
         self._call_store.update_status(self.call_sid, status)
         self._call_store.add_event(self.call_sid, "status", f"Call closed with status: {status}")

@@ -31,22 +31,20 @@ def hardcoded_patient_context(patient_name: str | None) -> str:
         return ""
     name = patient_name.strip()
     return (
-        f"\n\n## Pre-identified patient\n"
-        f"The patient's full legal name is already on file as {name}. "
-        "Do NOT ask for their name, spelling, name confirmation, or how to spell any part of their name. "
-        "If the caller says a different name, ignore it and continue intake using the on-file name only. "
-        "Your first question after greeting must be date of birth, reason for visit, or the next missing intake field."
+        f"\n\n## Pre-identified patient (returning / registered only)\n"
+        f"If the caller is already registered, their full legal name is on file as {name}. "
+        "For registered patients, do NOT ask for their name or spelling again. "
+        "If the caller says they are NEW or not registered, ignore the on-file name and run the new-patient "
+        "appointment registration flow instead — collect their real full name and spelling."
     )
 
 
-_NAME_TRANSCRIPT_PATTERNS = (
-    re.compile(r"(?i)\bmy (?:full )?(?:legal )?name\b"),
-    re.compile(r"(?i)\bfull legal name\b"),
-    re.compile(r"(?i)\b(?:first|last) name is\b"),
-    re.compile(r"(?i)\bspell(?:ing)?\b"),
-    re.compile(r"(?i)\bletter by letter\b"),
-    re.compile(r"(?i)\bcorrect spelling\b"),
-    re.compile(r"(?i)^(?:[a-z]\s+){2,}[a-z]\s*$"),
+_NEW_PATIENT_CONTEXT_PATTERNS = (
+    re.compile(r"(?i)\bnew (?:patient|here)\b"),
+    re.compile(r"(?i)\b(?:i am|i'm) new\b"),
+    re.compile(r"(?i)\bnot registered\b"),
+    re.compile(r"(?i)\bfirst time\b"),
+    re.compile(r"(?i)\bnever (?:been|visited)\b"),
 )
 
 
@@ -54,7 +52,25 @@ def should_normalize_patient_name_transcript(text: str) -> bool:
     cleaned = text.strip()
     if not cleaned:
         return False
-    return any(pattern.search(cleaned) for pattern in _NAME_TRANSCRIPT_PATTERNS)
+    if any(pattern.search(cleaned) for pattern in _NEW_PATIENT_CONTEXT_PATTERNS):
+        return False
+    if any(pattern.search(cleaned) for pattern in _SPELLING_TRANSCRIPT_PATTERNS):
+        return False
+    return any(pattern.search(cleaned) for pattern in _NAME_CLAIM_PATTERNS)
+
+
+_NAME_CLAIM_PATTERNS = (
+    re.compile(r"(?i)\bmy (?:full )?(?:legal )?name\b"),
+    re.compile(r"(?i)\bfull legal name\b"),
+    re.compile(r"(?i)\b(?:first|last) name is\b"),
+)
+
+_SPELLING_TRANSCRIPT_PATTERNS = (
+    re.compile(r"(?i)\bspell(?:ing)?\b"),
+    re.compile(r"(?i)\bletter by letter\b"),
+    re.compile(r"(?i)\bcorrect spelling\b"),
+    re.compile(r"(?i)^(?:[a-z]\s+){2,}[a-z]\s*$"),
+)
 
 
 def normalize_patient_transcript(text: str, patient_name: str | None) -> str:
@@ -150,6 +166,10 @@ class Settings(BaseSettings):
         default="eleven_turbo_v2",
         alias="ELEVENLABS_TTS_MODEL",
     )
+    elevenlabs_language: str = Field(
+        default="en",
+        alias="ELEVENLABS_LANGUAGE",
+    )
 
     twilio_account_sid: str = Field(alias="TWILIO_ACCOUNT_SID")
     twilio_auth_token: str = Field(alias="TWILIO_AUTH_TOKEN")
@@ -165,10 +185,22 @@ class Settings(BaseSettings):
         default_factory=default_agent_greeting,
         alias="AGENT_GREETING",
     )
+    agent_greeting_inbound: str | None = Field(
+        default=None,
+        alias="AGENT_GREETING_INBOUND",
+    )
+    default_inbound_scenario_id: str = Field(
+        default="patient-intake",
+        alias="DEFAULT_INBOUND_SCENARIO_ID",
+    )
     agent_system_prompt: str = Field(
         default_factory=default_agent_system_prompt,
         alias="AGENT_SYSTEM_PROMPT",
     )
+
+    def resolved_inbound_greeting(self) -> str:
+        inbound = (self.agent_greeting_inbound or "").strip()
+        return inbound or self.agent_greeting
 
     @property
     def websocket_base_url(self) -> str:

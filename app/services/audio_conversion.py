@@ -41,5 +41,5 @@ def elevenlabs_pcm_to_twilio_mulaw(
         TWILIO_SAMPLE_RATE,
         state,
     )
-    mulaw_audio = audioop.lin2ulaw(pcm_8k, SAMPLE_WIDTH)
+    mulaw_audio = audioop.lin2ulaw(pcm_8k, SAMPLE_WIDTH) if pcm_8k else b""
     return mulaw_audio, new_state
