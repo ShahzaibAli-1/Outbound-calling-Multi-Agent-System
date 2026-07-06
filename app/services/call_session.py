@@ -9,6 +9,7 @@ from fastapi import WebSocket
 from elevenlabs.conversational_ai.conversation import Conversation
 
 from app.config import Settings, normalize_patient_transcript
+from app.services.agent_response_sanitizer import sanitize_agent_spoken_text
 from app.services.elevenlabs_agent import build_conversation_config, build_elevenlabs_client
 from app.services.patient_intake_service import PatientIntakeExtractor
 from app.services.twilio_audio_interface import TwilioAudioInterface
@@ -143,8 +144,12 @@ class CallSession:
         if self._closed or not text.strip():
             return
 
-        self._history.append({"role": "assistant", "content": text.strip()})
-        self._call_store.add_event(self.call_sid, "assistant", text.strip())
+        spoken = sanitize_agent_spoken_text(text)
+        if not spoken:
+            return
+
+        self._history.append({"role": "assistant", "content": spoken})
+        self._call_store.add_event(self.call_sid, "assistant", spoken)
 
     async def _record_user_transcript(self, text: str) -> None:
         if self._closed or not text.strip():

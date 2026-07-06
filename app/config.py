@@ -10,17 +10,20 @@ import httpx
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.services.agent_response_sanitizer import SPOKEN_OUTPUT_APPENDIX
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 PROMPT_FILE = BASE_DIR / "test_system_prompt.txt"
 
 VOICE_REPLY_GUIDANCE = (
-    "You are speaking on a live phone call for medical patient intake. Answer the caller's latest question "
-    "directly first, then ask at most one short follow-up intake question. Keep every reply extremely short "
-    "so it can be spoken almost immediately. Use no more than two short sentences and prefer fewer than thirty "
-    "words. Do not use markdown, bullet points, numbered lists, or long monologues. "
-    "Always speak in English only with the same calm professional tone throughout the entire call. "
-    "If the patient name is already on file, never ask for their name or spelling. "
+    "You are speaking on a live phone call for medical patient intake. "
+    "Output ONLY the exact words the patient should hear — nothing else. "
+    "Never reveal your reasoning, next steps, or references to instructions. "
+    "Answer the caller's latest question directly first, then ask at most one short follow-up intake question. "
+    "Keep every reply extremely short so it can be spoken almost immediately. "
+    "Use no more than two short sentences and prefer fewer than thirty words. "
+    "Do not use markdown, bullet points, numbered lists, emotion tags, or long monologues. "
     "Confirm dates and IDs by repeating them back once, then move to the next missing field. "
     "Never re-ask for information already listed under Current Intake Progress. Never diagnose or prescribe."
 )
@@ -84,7 +87,7 @@ def normalize_patient_transcript(text: str, patient_name: str | None) -> str:
 
 def resolved_agent_prompt(settings: "Settings", system_prompt: str | None = None) -> str:
     base = (system_prompt or settings.agent_system_prompt).strip()
-    return f"{base}{hardcoded_patient_context(settings.hardcoded_patient_name)}"
+    return f"{base}{hardcoded_patient_context(settings.hardcoded_patient_name)}{SPOKEN_OUTPUT_APPENDIX}"
 
 
 def compose_voice_prompt(prompt_text: str) -> str:

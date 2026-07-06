@@ -11,7 +11,7 @@ from elevenlabs.conversational_ai.conversation import Conversation
 
 from app.config import Settings, normalize_patient_transcript
 from app.models import PatientIntakeRecord
-from app.services.browser_audio_interface import BrowserAudioInterface
+from app.services.agent_response_sanitizer import sanitize_agent_spoken_text
 from app.services.elevenlabs_agent import (
     build_conversation_config,
     build_elevenlabs_client,
@@ -149,7 +149,9 @@ class DemoCallSession:
     async def _record_agent_response(self, text: str) -> None:
         if self._closed or not text.strip():
             return
-        normalized = text.strip()
+        normalized = sanitize_agent_spoken_text(text)
+        if not normalized:
+            return
         if self._history and self._history[-1].get("content") == normalized:
             return
         self._history.append({"role": "assistant", "content": normalized})
